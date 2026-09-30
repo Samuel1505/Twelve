@@ -97,7 +97,7 @@ An `IERC20 token` we can't resolve: its amounts get unit `Token(varId)`, a disti
 
 ## 4. Transfer functions over SlithIR
 
-Operate on **SSA** IR (`function.slithir_ssa_operations`) so each variable version has one definition. `VERIFY:` exact attribute names in the pinned Slither version — read the installed `slither/slithir/operations/*.py` before coding; do not code from memory.
+Operate on **SSA** IR (`function.slithir_ssa_operations`) so each variable version has one definition. Attribute names for the pinned Slither (0.11.6) were resolved against the installed source in Phase 0: see `analyzer/SLITHIR_NOTES.md`. Re-read the installed source on any Slither upgrade.
 
 | IR op | Rule |
 |---|---|

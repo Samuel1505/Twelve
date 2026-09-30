@@ -116,12 +116,35 @@ Mainnet went live on 16 September 2026. [3P]
 
 Run each against live endpoints, record results here, delete the `VERIFY:` markers you resolve.
 
-- [ ] `eth_chainId` on the chosen mainnet provider returns `0x13b2` (5042).
-- [ ] Pick one mainnet ERC-20 USDC transfer; fetch receipt; confirm exactly two Transfer logs with emitters `0x3600…` and `0xffff…fffe` and `v18 == v6 * 10¹²`; record ordering.
-- [ ] Pick one native send; confirm exactly one system log, zero `0x3600…` logs.
-- [ ] Confirm gas deduction produces no Transfer log.
-- [ ] `eth_getLogs` max block range and result cap on the chosen provider.
-- [ ] Blockscout Pro `smart-contracts/<addr>` response shape: field names for sources, compiler version, settings, EVM version, constructor args, `immutable_references` if present.
-- [ ] Highest solc + Foundry `evm_version` accepted for Arc; deploy a hello-world to testnet.
-- [ ] Whether `forge test --fork-url <arc-testnet>` exercises the `0x3600…` precompiles.
-- [ ] Obtain a small mainnet USDC balance for deployer and attester (CCTP path documented in `docs/BUILD_PLAN.md`).
+- [ ] `eth_chainId` on the chosen mainnet provider returns `0x13b2` (5042). — **BLOCKED (env)**; script `scripts/phase0/chain-id.ts`.
+- [ ] Pick one mainnet ERC-20 USDC transfer; fetch receipt; confirm exactly two Transfer logs with emitters `0x3600…` and `0xffff…fffe` and `v18 == v6 * 10¹²`; record ordering. — **BLOCKED (env)**; `scripts/phase0/logs.ts`.
+- [ ] Pick one native send; confirm exactly one system log, zero `0x3600…` logs. — **BLOCKED (env)**; `scripts/phase0/logs.ts`.
+- [ ] Confirm gas deduction produces no Transfer log. — **BLOCKED (env)**; `scripts/phase0/logs.ts` (native send + zero-value tx).
+- [ ] `eth_getLogs` max block range and result cap on the chosen provider. — **BLOCKED (env, no provider chosen)**; `scripts/phase0/getlogs-range.ts`.
+- [ ] Blockscout Pro `smart-contracts/<addr>` response shape: field names for sources, compiler version, settings, EVM version, constructor args, `immutable_references` if present. — **BLOCKED (env)**; `scripts/phase0/blockscout.ts` writes `analyzer/tests/fixtures/blockscout_smart_contract.json`. `VERIFY:` Pro API auth scheme (query `apikey` vs header); the script tries both and reports which worked.
+- [ ] Highest solc + Foundry `evm_version` accepted for Arc; deploy a hello-world to testnet. — **PARTIAL**: local compile only (see §8). Deploy **BLOCKED (env)**; `contracts/script/DeployHello.s.sol`.
+- [ ] Whether `forge test --fork-url <arc-testnet>` exercises the `0x3600…` precompiles. — **BLOCKED (env)**; `contracts/test-arc/Precompile.t.sol`.
+- [ ] Obtain a small mainnet USDC balance for deployer and attester (CCTP path documented in `docs/BUILD_PLAN.md`). — **NOT STARTED**: out of scope for this Phase 0 pass (no mainnet spend); needs owner decision.
+
+---
+
+## 8. Phase 0 log
+
+Run: 2026-09-30. Status: **offline half done, live half blocked.** No `.env` existed, so none of the RPC or
+Blockscout facts above have been observed yet and every Arc `VERIFY:` in this file remains open.
+
+### 8.1 Established offline
+
+| Fact | Result | Evidence |
+|---|---|---|
+| `TRANSFER_TOPIC`, `UPGRADED_TOPIC`, EIP-1967 impl/beacon slots in §2/§6 | Correct: recomputed from preimages | `packages/shared/test/constants.test.ts` (4/4 pass) |
+| Foundry 1.7.1 accepts `evm_version = "osaka"` | Yes, with solc 0.8.30 and 0.8.37 (latest release on 2026-09-30); metadata records `evmVersion: osaka` | `forge build --use 0.8.37 --evm-version osaka` → `0.8.37+commit.f401782d osaka` |
+| Hello deploys under local osaka EVM | Yes (anvil `--hardfork osaka`). **Not Arc evidence** (I8) | local only |
+| Arc accepts osaka bytecode / solc 0.8.37 | **Unknown**: needs testnet deploy | — |
+
+### 8.2 Deviations from doc assumptions found so far
+
+- `Contract addresses` source in the header uses `docs.arc.network` while every other source uses `docs.arc.io`.
+  `VERIFY:` which domain is canonical (owner: Phase 0 live run) before §5 is resolved.
+- crytic-compile's standard-JSON path mutates its input and rewrites `settings.optimizer` (drops `details`),
+  and needs sources on disk. This contradicts `ANALYZER.md §8` step 3 as written; see proposed ADR-016.

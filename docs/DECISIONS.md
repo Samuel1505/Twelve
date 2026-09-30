@@ -71,3 +71,9 @@ Format: Context → Options → Decision → Consequences. Append new ADRs; neve
 **Context.** Builder is fluent in TS/Rust/Solidity; Python is forced by Slither.
 **Decision.** Keep Python surface minimal; monitor in TS (viem's chain/log/signing ergonomics, shared units/types with web) rather than Rust.
 **Consequences.** One fewer toolchain in the image; monitor throughput is far above Arc's block rate at this stage.
+
+### ADR-016 — Bytecode match compiles independently of crytic-compile (PROPOSED, Phase 0)
+**Context.** `ANALYZER.md §8` step 3 assumes Slither is fed "the same standard-JSON … so the IR matches the compiled artifact". Phase 0 read crytic-compile 0.4.2 and ran it (`analyzer/SLITHIR_NOTES.md §11`): `SolcStandardJson` **mutates the input dict in place**, `add_optimization` **replaces `settings.optimizer` with `{enabled, runs}`** (dropping `optimizer.details`, and `runs` when 0), sources given only as inline `content` fail with `Unknown file`, and `outputSelection` must include `evm.*` and `ast`. Verified contracts compiled with custom `optimizer.details` would therefore produce different bytecode through crytic than on chain.
+**Options.** (a) Keep one compile through crytic and accept false `MATCH_FAILED` on `details` builds. (b) Two compiles: our own `solc --standard-json` on the pristine input for `standardJsonHash` + bytecode match (I5), and crytic on a deep copy (sources materialized to a temp dir, `solc_working_dir` set) for IR only. (c) Patch/monkeypatch crytic-compile.
+**Proposal.** (b). SlithIR is built from the AST, which the optimizer does not affect, so the IR is still correct for the verified source. The match uses the untouched input. `standardJsonHash` is computed before any library sees the dict.
+**Consequences.** Two solc runs per scan (cheap relative to the fetch). `ANALYZER.md §8` step 3 needs rewording once accepted. Report source paths must use `Filename.used`, never `relative`/`absolute` (I4).
