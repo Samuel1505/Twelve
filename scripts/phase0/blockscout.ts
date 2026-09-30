@@ -44,8 +44,10 @@ if (r.status === 200 && r.body && typeof r.body === "object") {
   const b = r.body as Record<string, unknown>;
   info("top-level fields", Object.keys(b).sort().join(", "));
   for (const k of ["source_code", "additional_sources", "compiler_version", "compiler_settings", "evm_version",
-    "optimization_enabled", "optimization_runs", "constructor_args", "deployed_bytecode", "file_path", "language", "is_verified", "immutable_references"]) {
+    "optimization_enabled", "optimization_runs", "constructor_args", "deployed_bytecode", "file_path", "language", "is_verified"]) {
     report(k in b, `field present: ${k}`, k in b ? `type ${Array.isArray(b[k]) ? "array" : typeof b[k]}` : "absent");
   }
+  // Optional per ARC_LEDGER §7; absent on Blockscout as of Phase 0 — we take it from our own compile.
+  info("immutable_references", "immutable_references" in b ? "present" : "absent (expected)");
 }
 finish();

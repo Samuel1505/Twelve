@@ -17,6 +17,13 @@ export function requireEnv(...names: string[]): Record<string, string> {
     console.log(`BLOCKED missing env: ${missing.join(", ")} (set in ${envPath})`);
     process.exit(2);
   }
+  for (const n of names.filter((n) => n.endsWith("_URL"))) {
+    const v = process.env[n] as string;
+    if (!/^(https?|wss?):\/\/[^/]/.test(v)) {
+      console.log(`BLOCKED ${n} must be a full URL with scheme (e.g. https://host/path), got a value of length ${v.length} without one`);
+      process.exit(2);
+    }
+  }
   return Object.fromEntries(names.map((n) => [n, process.env[n] as string]));
 }
 
