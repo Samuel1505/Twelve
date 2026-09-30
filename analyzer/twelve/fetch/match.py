@@ -27,12 +27,25 @@ class Match:
         return {"status": self.status, "maskedRanges": self.masked_ranges}
 
 
-def _cbor_len(code: bytes) -> int:
-    """Length of the trailing CBOR metadata incl. its 2-byte length suffix, or 0."""
-    if len(code) < 2:
-        return 0
-    n = int.from_bytes(code[-2:], "big")
-    return n + 2 if 0 < n + 2 <= len(code) and code[-n - 2] in (0xA1, 0xA2, 0xA3, 0xA4) else 0
+# CBOR metadata maps solc appends: {"ipfs"|"bzzr0"|"bzzr1"|"experimental", "solc"} (1-4 entries).
+_CBOR_HEADS = (bytes.fromhex("a264697066735822"), bytes.fromhex("a165627a7a72305820"),
+               bytes.fromhex("a265627a7a72315820"), bytes.fromhex("a264736f6c63"), bytes.fromhex("a36469706673"),
+               bytes.fromhex("a1646970667358"))
+
+
+def cbor_blobs(code: bytes) -> list[tuple[int, int]]:
+    """Every metadata blob (start, length incl. 2-byte length suffix). A factory's runtime embeds its children's
+    creation code, each with its own metadata, so blobs occur mid-code, not only at the end."""
+    out: list[tuple[int, int]] = []
+    for head in _CBOR_HEADS:
+        i = code.find(head)
+        while i != -1:
+            for j in range(i + len(head), min(len(code) - 1, i + 256)):
+                if int.from_bytes(code[j:j + 2], "big") == j - i:
+                    out.append((i, j + 2 - i))
+                    break
+            i = code.find(head, i + 1)
+    return sorted(set(out))
 
 
 def _first_diff(a: bytes, b: bytes) -> int | None:
@@ -75,8 +88,12 @@ def match_runtime(deployed: dict[str, Any], onchain: bytes) -> Match:
     if compiled == chain:
         return Match("exact" if not lib_ranges else "masked", masked, immutables, libraries)
 
-    cc, oc = _cbor_len(bytes(compiled)), _cbor_len(bytes(chain))
-    if cc and cc == oc and compiled[:-cc] == chain[:-oc]:
-        masked.append([len(chain) - oc, oc])
-        return Match("masked", sorted(masked), immutables, libraries)
+    # metadata may differ (partial verification: same code, different comments/paths). Mask a blob only where
+    # both sides carry one of the same length at the same offset — metadata is never executed (I5 holds).
+    common = sorted(set(cbor_blobs(bytes(compiled))) & set(cbor_blobs(bytes(chain))))
+    for s, n in common:
+        compiled[s:s + n] = b"\x00" * n
+        chain[s:s + n] = b"\x00" * n
+    if common and compiled == chain:
+        return Match("masked", sorted(masked + [[s, n] for s, n in common]), immutables, libraries)
     raise MatchFailed("code differs", _first_diff(bytes(compiled), bytes(chain)), len(compiled), len(chain))

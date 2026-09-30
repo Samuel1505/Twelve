@@ -76,6 +76,9 @@ from twelve.units import (
     is_view_conversion_scale,
 )
 
+# Yul builtins that move funds or write storage (SolidityFunction names are full descriptors, e.g. "call(uint256,…)").
+YUL_EFFECTFUL_BUILTINS = ("call(", "callcode(", "sstore(", "create(", "create2(", "selfdestruct(")
+
 MAX_CONTRACT_ITERATIONS = 20
 MAX_FUNCTION_PASSES = 12
 MAX_CALL_DEPTH = 8
@@ -521,11 +524,32 @@ class FunctionAnalysis:
         self.returns = []
         for node, ir in ops:
             if getattr(getattr(node, "scope", None), "is_yul", False):
-                self.has_asm = True
+                if self._asm_touches_state(ir):
+                    self.has_asm = True
                 if isinstance(ir, OperationWithLValue) and ir.lvalue is not None:
                     self._set(ir.lvalue, TOP, site_of(ir))
                 continue
             self._op(node, ir)
+
+    def _solidity_locals(self) -> list[Any]:
+        fn = self.fn
+        declared = [n.variable_declaration for n in fn.nodes
+                    if n.variable_declaration is not None and not getattr(n.scope, "is_yul", False)]
+        return [*fn.parameters, *fn.returns, *declared]
+
+    def _asm_touches_state(self, ir: Any) -> bool:
+        """Assembly counts as unsupported only if it can change a tracked value or move funds (§4 table):
+        it assigns a Solidity-declared local/state variable, writes storage, or makes a value-carrying call.
+        Revert bubbling, memory copies and pure math on Yul locals do not."""
+        if isinstance(ir, SolidityCall):
+            name = ir.function.name if isinstance(ir.function, SolidityFunction) else str(ir.function)
+            if name.startswith(YUL_EFFECTFUL_BUILTINS):
+                return True
+        lv = getattr(ir, "lvalue", None)
+        if lv is None:
+            return False
+        base = _base(lv)
+        return _is_state(base) or any(base is v for v in self._solidity_locals())
 
     # ---------------------------------------------------------------- values
     def value(self, v: Any, node: Any, site: Site) -> Value:

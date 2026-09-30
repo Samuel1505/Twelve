@@ -41,3 +41,16 @@ def test_code_difference_fails_with_offset() -> None:
         match_runtime({"object": _code(b"\x60\x80").hex()}, _code(b"\x60\x80\x56"))
     with pytest.raises(MatchFailed):
         match_runtime({"object": "6080"}, b"")
+
+
+def test_factory_with_embedded_child_metadata() -> None:
+    child_a = b"\x60\x01" + CBOR
+    child_b = b"\x60\x01" + CBOR[:-11] + b"\x44" * 9 + CBOR[-2:]
+    other_tail = CBOR[:-11] + b"\x55" * 9 + CBOR[-2:]
+    compiled = _code(b"\x60\x80" + child_a + b"\x56")
+    onchain = _code(b"\x60\x80" + child_b + b"\x56", other_tail)
+    m = match_runtime({"object": compiled.hex()}, onchain)
+    assert m.status == "masked" and len(m.masked_ranges) == 2
+    # a code byte change next to identical metadata still fails
+    with pytest.raises(MatchFailed):
+        match_runtime({"object": compiled.hex()}, _code(b"\x60\x81" + child_b + b"\x56", other_tail))
