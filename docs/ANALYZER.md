@@ -118,7 +118,7 @@ Operate on **SSA** IR (`function.slithir_ssa_operations`) so each variable versi
 | `Return` | contributes to function summary |
 | `Unpack` / tuples | per-element |
 | library calls to known math libs (`Math.mulDiv(a,b,c)`) | model as `a⊗b⊘c`; add others to `sources_sinks.py` table |
-| inline assembly touching a tracked value | value → `Unknown`, function flagged `UNSUPPORTED_ASM` in report meta |
+| inline assembly touching a tracked value | value → `Unknown`, function flagged `UNSUPPORTED_ASM` in `coverage.unsupported`. "Touching" = the Yul block assigns a Solidity-declared local/parameter/return or a state variable, writes storage (`sstore`), or calls `call/callcode/create/create2/selfdestruct` in a function that also has a USDC source/sink. Revert bubbling and memory copies do not count (Phase 2: LightAccount) |
 
 ### 4.1 Interprocedural
 - Summaries are **context-sensitive on argument units**: key `(function, tuple(argUnits))` → `(returnUnits, stateEffects, findings)`. Memoized. Depth cap 8; beyond → `Unknown`.
@@ -216,7 +216,7 @@ Severity is then capped by confidence: HEURISTIC ⇒ max MEDIUM; INFERRED ⇒ un
 {
   "schemaVersion": 1,
   "tool": {"name": "twelve", "version": "0.1.0", "gitCommit": "…", "slither": "x.y.z", "rulesHash": "…"},
-  "target": {"chainId": 5042, "address": "0x…", "codehash": "0x…", "kind": "contract|eip1967Proxy|beaconProxy",
+  "target": {"chainId": 5042, "address": "0x…", "codehash": "0x…", "kind": "contract|eip1967Proxy|beaconProxy|zosProxy|eip1167Clone",
              "implementation": {"address": "0x…", "codehash": "0x…"} },
              // pre-deploy mode: {"kind": "source", "files": ["<standard-JSON source unit names>"]}
   "input": {"standardJsonHash": "0x…", "compiler": "0.8.x+commit.…", "evmVersion": "…", "optimizer": {"enabled": true, "runs": 200},
@@ -247,7 +247,9 @@ Canonicalization: RFC 8785 JCS (`rfc8785` package). All hex lowercase, `0x`-pref
    - strip trailing CBOR metadata (last 2 bytes = length),
    - resolve `linkReferences` with on-chain library addresses,
    - compare. Exact → `exact`; equal after masking → `masked`; else `MATCH_FAILED` with first differing offset.
-5. For proxies, repeat for the implementation; the report carries both codehashes.
+5. For proxies, repeat for the implementation; the report carries both codehashes. Storage bindings of the implementation are read from the **proxy's** storage (delegatecall context).
+
+Implementation notes (Phase 2): solc builds are fetched from binaries.soliditylang.org and checked against the published sha256 (`fetch/solc_bin.py`). The match masks *every* CBOR metadata blob present at the same offset/length on both sides — factories embed child creation code with its own metadata mid-runtime (`fetch/match.py:cbor_blobs`). A verified `kind: contract` whose fallback/receive delegates is reported as `UNKNOWN_PROXY` in `coverage.unsupported` (verdict `INCOMPLETE`, ADR-018). Chain reads are pinned to `bindingBlock`; `twelve verify --report r.json` recomputes at that block.
 
 ## 9. CLI
 

@@ -49,7 +49,7 @@ Matching: rule + function + line (±0). Extra findings on `bug.sol` count as FP 
 
 Hard negatives (safe-only cases, must be CLEAN): `h01` OZ ERC4626 vault over unresolved asset; `h02` Chainlink 8-dec oracle math to `(1,6)`; `h03` ETH-style escrow with only native flows; `h04` correct `a6 * 1e12 + msg.value`; `h05` bps fee math on native only; `h06` Uniswap-v2-style math on ERC-20 only; `h07` WAD (`/1e18`) and ppm (`/1e6`) fee math on both views (ADR-019).
 
-Conventions (Phase 1): expected findings are marked in `bug.sol` with `// @expect TW-xxx SEVERITY function(sig)` on the finding's line; `python -m twelve.metrics corpus --write-expect` regenerates `expect.json` from the markers. Cases whose expectation is "none" (c15, c17, c18) have only `bug.sol` with an empty `findings` list. c09–c11 need deployed mode and land in Phase 2.
+Conventions (Phase 1): expected findings are marked in `bug.sol` with `// @expect TW-xxx SEVERITY function(sig)` on the finding's line; `python -m twelve.metrics corpus --write-expect` regenerates `expect.json` from the markers. Cases whose expectation is "none" (c15, c17, c18) have only `bug.sol` with an empty `findings` list. c09–c11 bind USDC only on chain (immutable constructor arg, storage setter, EIP-1967 proxy); their `expect.json` carries a `deployed` block with Arc testnet addresses (deployed + verified by `contracts/script/DeployCorpusDeployed.s.sol`). Source-mode metrics list them as skipped; `python -m twelve.metrics corpus --deployed` scans the addresses and writes `METRICS.deployed.md`.
 
 Add a case **every time** a bug in the analyzer is found (regression first, fix second).
 
