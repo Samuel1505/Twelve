@@ -1,0 +1,13 @@
+{
+  "name": "@twelve/shared",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "echo 'no tests yet'"
+  },
+  "dependencies": {
+    "viem": "2.57.1"
+  }
+}

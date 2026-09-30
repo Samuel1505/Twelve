@@ -1,0 +1,21 @@
+node_modules/
+dist/
+.next/
+.env
+.env.*
+!.env.example
+.DS_Store
+# python
+.venv/
+__pycache__/
+*.pyc
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+# foundry
+contracts/out/
+contracts/cache/
+contracts/broadcast/*/31337/
+contracts/lib/
+# phase0 raw dumps (evidence we keep is committed under docs/evidence)
+scripts/phase0/out/
