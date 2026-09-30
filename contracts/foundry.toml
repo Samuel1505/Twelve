@@ -5,8 +5,8 @@ script = "script"
 out = "out"
 libs = ["lib"]
 solc_version = "0.8.30"
-# VERIFY (Phase 0 step 4): highest evm_version accepted on Arc (Osaka baseline). prague is the fallback.
-evm_version = "prague"
+# Phase 0: osaka accepted on Arc testnet (ARC_LEDGER §4).
+evm_version = "osaka"
 optimizer = true
 optimizer_runs = 200
 

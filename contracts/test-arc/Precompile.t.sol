@@ -9,6 +9,14 @@ import {SCALE} from "../src/guard/Usdc.sol";
 /// under a fork, the answer is "no" and test-arc/ must become broadcast-and-assert scripts (ADR-008).
 /// Holder = deployer address (must hold testnet USDC from the faucet).
 contract PrecompileForkTest is Test {
+    /// @dev Accepts the key with or without a 0x prefix (.env files vary).
+    function _envKey(string memory name) internal view returns (uint256) {
+        string memory k = vm.envString(name);
+        bytes memory b = bytes(k);
+        if (b.length >= 2 && b[0] == "0" && (b[1] == "x" || b[1] == "X")) return vm.parseUint(k);
+        return vm.parseUint(string.concat("0x", k));
+    }
+
     address constant USDC = 0x3600000000000000000000000000000000000000;
     address constant SYSTEM_EMITTER = 0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE;
     bytes32 constant TRANSFER_TOPIC = keccak256("Transfer(address,address,uint256)");
@@ -17,7 +25,7 @@ contract PrecompileForkTest is Test {
     address recipient = address(uint160(uint256(keccak256("twelve.phase0.recipient"))));
 
     function setUp() public {
-        holder = vm.addr(vm.envUint("DEPLOYER_PRIVATE_KEY"));
+        holder = vm.addr(_envKey("DEPLOYER_PRIVATE_KEY"));
         require(block.chainid == 5042002, "run with --fork-url $ARC_TESTNET_RPC_URL");
     }
 
