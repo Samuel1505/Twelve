@@ -244,10 +244,23 @@ class Write:
     contract: str
 
 
+@dataclass(frozen=True)
+class DeployedValue:
+    """An address-typed state variable read from chain (ANALYZER §3.2)."""
+
+    address: int
+    method: str  # immutable | storage
+    mutable: bool
+
+
 class Engine:
-    def __init__(self, slither: Any, sources: dict[str, str], config: dict[str, str]) -> None:
+    def __init__(self, slither: Any, sources: dict[str, str], config: dict[str, str],
+                 deployed: dict[str, DeployedValue] | None = None,
+                 target: tuple[str, str] | None = None) -> None:
         self.slither = slither
         self.sources = sources
+        self.deployed = deployed or {}
+        self.target = target  # (source unit, contract name) in deployed mode
         self.static = StaticBindings(sources, config)
         self.findings: dict[str, Finding] = {}
         self.unsupported: set[tuple[str, str]] = set()
@@ -260,6 +273,10 @@ class Engine:
         out = []
         for cu in self.slither.compilation_units:
             for c in cu.contracts:
+                if self.target is not None:
+                    if (c.source_mapping.filename.used, c.name) == self.target:
+                        out.append(c)
+                    continue
                 if c.is_interface or c.is_library or c.derived_contracts:
                     continue
                 out.append(c)
@@ -534,6 +551,9 @@ class FunctionAnalysis:
         if _is_state(base):
             if base.is_constant:
                 return self.ca.e.const_value(base)
+            dep = self.ca.e.deployed.get(base.canonical_name)
+            if dep is not None:
+                return Value.literal(dep.address)
             return self.ca.load((base.canonical_name,), site)
         got = self.env.get(_key(v), BOT)
         if got.kind is Kind.BOT and self._is_param(base):
@@ -824,11 +844,15 @@ class FunctionAnalysis:
         val = self.value(dest, node, site)
         if val.kind is Kind.LIT and val.lit == USDC_ERC20_ADDRESS:
             if _is_state(base):
-                method = "constant" if base.is_constant else ("immutable" if base.is_immutable else "storage")
                 name = f"{base.contract.name}.{base.name}" if getattr(base, "contract", None) is not None \
                     else base.name
-                self.ca.e.bindings.setdefault(name, Binding(name, method, Conf.DEFINITE,
-                                                            not (base.is_constant or base.is_immutable)))
+                dep = self.ca.e.deployed.get(base.canonical_name)
+                if dep is not None:
+                    method, mutable = dep.method, dep.mutable
+                else:
+                    method = "constant" if base.is_constant else ("immutable" if base.is_immutable else "storage")
+                    mutable = not (base.is_constant or base.is_immutable)
+                self.ca.e.bindings.setdefault(name, Binding(name, method, Conf.DEFINITE, mutable))
             return Conf.DEFINITE
         if isinstance(base, StateVariable):
             b = self.ca.e.static.lookup(base)
@@ -902,8 +926,9 @@ class FunctionAnalysis:
         self._result(ir, (TOP,), site)
 
 
-def analyze(slither: Any, sources: dict[str, str], config: dict[str, str]) -> Engine:
-    e = Engine(slither, sources, config)
+def analyze(slither: Any, sources: dict[str, str], config: dict[str, str],
+            deployed: dict[str, DeployedValue] | None = None, target: tuple[str, str] | None = None) -> Engine:
+    e = Engine(slither, sources, config, deployed, target)
     e.run()
     return e
 
