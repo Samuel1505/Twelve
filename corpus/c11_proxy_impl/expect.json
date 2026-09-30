@@ -1,0 +1,18 @@
+{
+  "findings": [
+    {
+      "rule": "TW-003",
+      "severity": "HIGH",
+      "function": "refund()",
+      "line": 26
+    }
+  ],
+  "verdict": "FINDINGS",
+  "safeVerdict": "CLEAN",
+  "deployed": {
+    "chain": "arc-testnet",
+    "bug": "0xed74Cab02654CFfeA85fDfb402821a83EF1d40FC",
+    "safe": "0xc2Dc300E524Cb9Ee18887E7c2333D24403dF076A",
+    "note": "deployed by contracts/script/DeployCorpusDeployed.s.sol; c10 setToken(0x3600) after deploy; c11 = EIP-1967 proxy address"
+  }
+}

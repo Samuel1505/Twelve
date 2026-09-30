@@ -4,6 +4,9 @@ test = "test"
 script = "script"
 out = "out"
 libs = ["lib"]
+# script/DeployCorpusDeployed.s.sol deploys corpus cases c09–c11 for deployed-mode tests
+allow_paths = ["../corpus"]
+include_paths = [".."]
 solc_version = "0.8.30"
 # Phase 0: osaka accepted on Arc testnet (ARC_LEDGER §4).
 evm_version = "osaka"
