@@ -16,6 +16,5 @@ __pycache__/
 contracts/out/
 contracts/cache/
 contracts/broadcast/*/31337/
-contracts/lib/
 # phase0 raw dumps (evidence we keep is committed under docs/evidence)
 scripts/phase0/out/
