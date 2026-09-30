@@ -138,7 +138,7 @@ pnpm --filter web dev
 scripts/lint-units.sh && pnpm -r typecheck && pnpm -r test
 ```
 
-`VERIFY:` whether `forge test --fork-url` against Arc testnet exercises the native-coin precompiles behind `0x3600…` (Arc docs say those features only surface against an Arc RPC endpoint; a *fork* executes locally and may not). If it does not, `test-arc/` becomes broadcast-and-assert scripts against testnet. Resolve this in Phase 0 and update this section.
+Resolved in Phase 0 (ARC_LEDGER §4): `forge test --fork-url $ARC_TESTNET_RPC_URL` executes `0x3600` **reads** (`balanceOf`) correctly but **not writes**: `transfer` calls the native-coin precompile at `0x1800…`, which is a placeholder (`0x01`) in a fork and reverts. Read-only assertions may use a fork. Anything that moves USDC must be a broadcast-and-assert script against testnet (proposed ADR-017).
 
 ---
 
@@ -183,7 +183,7 @@ See `.env.example`. Required:
 
 **Python (analyzer)**: 3.12, full type hints, `mypy --strict` clean, `ruff`. Frozen dataclasses for IR-derived facts. No global mutable state except explicit caches keyed by content hash. Sort every collection before it reaches the report. Pin `slither-analyzer` exactly; SlithIR class names/attributes change between versions — check the installed source before using an attribute.
 
-**Solidity**: `pragma solidity 0.8.30;` exact (≥0.8.19 required for UDVT operators). `VERIFY:` highest solc/`evm_version` Foundry supports for Arc's Osaka baseline; if `osaka` is unavailable, `prague` is acceptable because our contracts use no Osaka-only opcodes. Custom errors, no revert strings. NatSpec on every external function. Checks-effects-interactions; `nonReentrant` not needed in the registry (no external calls) but required in `TwelveGate` and demo contracts that send value.
+**Solidity**: `pragma solidity 0.8.30;` exact (≥0.8.19 required for UDVT operators). `evm_version = "osaka"` (Phase 0: solc 0.8.30 and 0.8.37 with osaka both deploy on Arc testnet; see ARC_LEDGER §4). Custom errors, no revert strings. NatSpec on every external function. Checks-effects-interactions; `nonReentrant` not needed in the registry (no external calls) but required in `TwelveGate` and demo contracts that send value.
 
 **TypeScript**: strict, `viem` for all chain I/O, `zod` at every boundary (HTTP, DB rows, analyzer JSON). Branded amounts (I2). No `any`. Errors are typed results at module boundaries; exceptions only for programmer errors.
 
