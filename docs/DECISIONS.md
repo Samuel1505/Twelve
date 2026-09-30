@@ -72,7 +72,7 @@ Format: Context → Options → Decision → Consequences. Append new ADRs; neve
 **Decision.** Keep Python surface minimal; monitor in TS (viem's chain/log/signing ergonomics, shared units/types with web) rather than Rust.
 **Consequences.** One fewer toolchain in the image; monitor throughput is far above Arc's block rate at this stage.
 
-### ADR-016 — Bytecode match compiles independently of crytic-compile (PROPOSED, Phase 0)
+### ADR-016 — Bytecode match compiles independently of crytic-compile (ACCEPTED 2026-09-30)
 **Context.** `ANALYZER.md §8` step 3 assumes Slither is fed "the same standard-JSON … so the IR matches the compiled artifact". Phase 0 read crytic-compile 0.4.2 and ran it (`analyzer/SLITHIR_NOTES.md §11`): `SolcStandardJson` **mutates the input dict in place**, `add_optimization` **replaces `settings.optimizer` with `{enabled, runs}`** (dropping `optimizer.details`, and `runs` when 0), sources given only as inline `content` fail with `Unknown file`, and `outputSelection` must include `evm.*` and `ast`. Verified contracts compiled with custom `optimizer.details` would therefore produce different bytecode through crytic than on chain.
 **Options.** (a) Keep one compile through crytic and accept false `MATCH_FAILED` on `details` builds. (b) Two compiles: our own `solc --standard-json` on the pristine input for `standardJsonHash` + bytecode match (I5), and crytic on a deep copy (sources materialized to a temp dir, `solc_working_dir` set) for IR only. (c) Patch/monkeypatch crytic-compile.
 **Proposal.** (b). SlithIR is built from the AST, which the optimizer does not affect, so the IR is still correct for the verified source. The match uses the untouched input. `standardJsonHash` is computed before any library sees the dict.
@@ -84,7 +84,7 @@ Format: Context → Options → Decision → Consequences. Append new ADRs; neve
 **Proposal.** (b). `test-arc/` holds read-only fork tests; `script/arc/*.s.sol` plus a TS assertion runner handle the write paths (LeakyRefund dust, FixedRefund exact, OverpayVault, TwelveGate).
 **Consequences.** Write-path tests spend testnet USDC and take seconds, not ms; they run nightly and pre-release, not per commit.
 
-### ADR-018 — Proxy detection includes the legacy ZeppelinOS implementation slot (PROPOSED, Phase 0)
+### ADR-018 — Proxy detection includes the legacy ZeppelinOS implementation slot (ACCEPTED 2026-09-30)
 **Context.** ARCHITECTURE §3 RESOLVING classifies proxies by EIP-1967 impl + beacon slots only. Arc's own `0x3600…` is a ZOS `AdminUpgradeabilityProxy` (impl at `keccak("org.zeppelinos.proxy.implementation")` = `0x7050c9e0…f8c3`, EIP-1967 slot empty). FiatToken-derived and other older-OpenZeppelin contracts ported to Arc will use the same layout. Undetected, their proxy code gets scanned (a trivial delegatecall shell → CLEAN) and attested while the real logic sits in the implementation.
 **Options.** (a) EIP-1967 only; the ZOS case falls through to "contract". (b) Also read the ZOS slot and treat a non-zero value as `proxy(zos)`; attest proxy + implementation codehash as for EIP-1967 (ADR-005). The monitor watches `Upgraded` (same topic0).
 **Proposal.** (b). Additionally, any contract whose runtime is a pure `DELEGATECALL` forwarder with no recognized slot → `UNSUPPORTED(unknown-proxy)`, never CLEAN.

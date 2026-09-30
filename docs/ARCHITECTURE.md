@@ -67,7 +67,7 @@ Chain definitions (viem `defineChain` for 5042/5042002 incl. WS), constants (`US
 
 ```
 QUEUED
- → RESOLVING      eth_getCode, codehash; classify: EOA | 7702-delegated | contract | EIP-1967 proxy | beacon proxy
+ → RESOLVING      eth_getCode, codehash; classify: EOA | 7702-delegated | contract | EIP-1967 proxy | beacon proxy | ZOS proxy (ADR-018) | EIP-1167 clone
  → FETCHING       Blockscout verified source (for proxy: proxy + implementation)
  → REBUILDING     reconstruct solc standard-JSON input from verified metadata
  → COMPILING      exact solc version (svm/solc-select), same settings

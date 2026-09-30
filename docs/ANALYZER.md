@@ -239,9 +239,9 @@ Canonicalization: RFC 8785 JCS (`rfc8785` package). All hex lowercase, `0x`-pref
 
 ## 8. Fetch, rebuild, match (`twelve/fetch/`)
 
-1. **Fetch** `GET https://api.blockscout.com/5042/api/v2/smart-contracts/{address}` (Pro key). `VERIFY:` field names in live response (Phase 0).
+1. **Fetch** `GET https://api.blockscout.com/5042/api/v2/smart-contracts/{address}?apikey=…` (Pro key). Field names confirmed in Phase 0 (ARC_LEDGER §7; fixture `analyzer/tests/fixtures/blockscout_smart_contract.json`).
 2. **Rebuild** solc standard-JSON: sources (main + additional), `settings.optimizer`, `evmVersion`, `remappings`, `libraries`, `viaIR`. Hash it: `standardJsonHash = keccak(JCS(input))`.
-3. **Compile** with the exact compiler build (svm). Slither gets the same standard-JSON (`--solc-standard-json` equivalent / crytic-compile `solc_standard_json`) so the IR matches the compiled artifact.
+3. **Compile** with the exact compiler build (svm/solc binaries, checksum-verified) by running `solc --standard-json` ourselves on the untouched rebuilt input; that output is what step 4 matches. Slither gets a deep copy through crytic-compile (sources materialized on disk) for IR only — crytic rewrites `settings.optimizer`, and IR is pre-optimizer so the analysis is unaffected (ADR-016).
 4. **Match** runtime code:
    - zero `immutableReferences` ranges in both,
    - strip trailing CBOR metadata (last 2 bytes = length),
