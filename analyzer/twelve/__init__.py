@@ -1,1 +1,3 @@
-"""twelve.__init__ — see docs/ANALYZER.md. Empty until Phase 1."""
+"""Twelve — Arc's decimal-safety analyzer (docs/ANALYZER.md)."""
+
+__version__ = "0.1.0"

@@ -13,6 +13,7 @@ from twelve.units import (
     DIMENSIONLESS,
     ERC20,
     NATIVE,
+    NATIVE_EXP,
     SCALE_EXPONENTS,
     Unit,
     is_other_view_magnitude,
@@ -304,8 +305,11 @@ def check_equal(a: Value, b: Value) -> tuple[Value, Collision | None]:
         va, vb = view_of(ua), view_of(ub)
         if va is not None and vb is not None:
             return TOP, Collision(CollisionKind.MIXED_VIEWS, a, b)
-        if (va is None) != (vb is None):
-            # one side is a view, the other an amount at a non-view exponent: missing/extra divisor
+        drift = ua if va is None else ub
+        if (va is None) != (vb is None) and not 0 <= drift.exp <= NATIVE_EXP:
+            # One side is a view, the other an amount outside [0, 18]: only a conversion applied in the wrong
+            # direction (a18 * scale, a6 / scale) gets there. In-range exponents are indistinguishable from
+            # fixed-point math (WAD and ppm divisors) and stay silent (ADR-019).
             return TOP, Collision(CollisionKind.EXP_DRIFT, a, b)
     return TOP, None
 

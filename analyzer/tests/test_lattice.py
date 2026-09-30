@@ -98,8 +98,13 @@ def test_collisions() -> None:
     assert c is not None and c.kind is CollisionKind.LITERAL_OTHER_VIEW and c.conf is Conf.HEURISTIC
     _, c = check_equal(Value.of(NATIVE), Value.literal(pow(10, 18)))
     assert c is None
-    _, c = check_equal(Value.of(Unit(1, 14)), Value.of(NATIVE))
+    _, c = check_equal(Value.of(Unit(1, 30)), Value.of(ERC20))
     assert c is not None and c.kind is CollisionKind.EXP_DRIFT
+    _, c = check_equal(Value.of(Unit(1, -6)), Value.of(NATIVE))
+    assert c is not None and c.kind is CollisionKind.EXP_DRIFT
+    # in-range exponents look like fixed-point math (WAD, ppm): silent (ADR-019)
+    assert check_equal(Value.of(Unit(1, 14)), Value.of(NATIVE))[1] is None
+    assert check_equal(Value.of(Unit(1, 0)), Value.of(NATIVE))[1] is None
     _, c = check_equal(Value.of_token("t"), Value.of(NATIVE))
     assert c is not None and c.kind is CollisionKind.TOKEN_MIX
     # dimensionless vs amount: no claim
