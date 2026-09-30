@@ -89,3 +89,9 @@ Format: Context → Options → Decision → Consequences. Append new ADRs; neve
 **Options.** (a) EIP-1967 only; the ZOS case falls through to "contract". (b) Also read the ZOS slot and treat a non-zero value as `proxy(zos)`; attest proxy + implementation codehash as for EIP-1967 (ADR-005). The monitor watches `Upgraded` (same topic0).
 **Proposal.** (b). Additionally, any contract whose runtime is a pure `DELEGATECALL` forwarder with no recognized slot → `UNSUPPORTED(unknown-proxy)`, never CLEAN.
 **Consequences.** One more `eth_getStorageAt` per scan; closes a false-CLEAN path. Requires a `constants.ts` entry and a registry-side note that `0x3600` itself is upgradeable by Circle.
+
+### ADR-019 — TW-008 (EXP_DRIFT) fires only outside [0, 18] (ACCEPTED, Phase 1)
+**Context.** §5.3 treats `1e6`/`1e12`/`1e18` as scales. Fixed-point fee math divides by the same literals with a dimensionless rate: `msg.value * FEE_WAD / 1e18` lands at `(1,0)`, `a6 * FEE_PPM / 1e6` at `(1,0)`; `msg.value * ppm / 1e6` at `(1,12)`. With TW-008 as specified ("exp ∉ {6,18}"), these correct patterns — among the most common in DeFi — would be findings on safe code (h07).
+**Options.** (a) Keep the rule; accept LOW FPs (they count against safe-twin FP ≥ LOW). (b) Model WAD/ppm literals as dimensionless (breaks the `a18 / 1e12` conversion the whole analyzer depends on). (c) Fire only for exponents no fixed-point pattern produces: outside `[0, 18]`, reachable only by applying the view conversion in the wrong direction (`a18 * 1e12` → 30, `a6 / 1e12` → −6).
+**Decision.** (c), per CLAUDE.md "precision beats coverage". Storage merges of a view with a non-view exponent are likewise silent (no TW-005/TW-008).
+**Consequences.** Missing-divisor bugs that stay inside `[0,18]` are not reported; the corpus documents the boundary (c21 fires, h07 is clean).

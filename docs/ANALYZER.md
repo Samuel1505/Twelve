@@ -67,7 +67,7 @@ Finding confidence = min of operand confidences. Severity table in §5.
 | Literal `10**k` / `1ek` in multiplicative position | (0,k) | DEFINITE |
 | Literal `10**k` in additive/comparison position against an amount | see §4.3 | HEURISTIC |
 | Any other literal | (0,0) | DEFINITE |
-| Function parameters of public/external functions | `⊥` then set from **annotations** (§3.3) or left `Unknown` | — |
+| Function parameters of public/external functions | from **annotations** (§3.3), else `Unknown`; **backward inference**: a parameter passed *directly* to a sink takes that sink's view (INFERRED) at every read the sink strictly dominates (c16); non-dominating sinks infer nothing (c17) | — |
 | Return of external call to unbound contract | `Unknown` | — |
 
 ## 3. Bindings — which variables are the USDC ERC-20?
@@ -139,6 +139,13 @@ until cells' == cells  (cap 20 iterations → remaining changed cells := Unknown
 
 A cell that receives two different concrete units is exactly the "credit native, debit ERC-20" pattern → **TW-005**, reported at the **second-in-source-order write site**, with both writers in the trace.
 
+### 4.2.1 Implementation notes (Phase 1)
+- Integer literals are a lattice element of their own (`LIT`): they adopt the unit of whatever they meet in `+ - == <` and in joins (so `x = 0; x += msg.value` is fine), and become `(0,k)`/`(0,0)` per §5.3 in `* / **`. Literal folding makes `10**12` and `10**decimals()` scales.
+- **Address literals flow through the same lattice**: `IERC20(0x3600…)` in a constant, an immutable/storage var assigned only that literal, or an inline cast all resolve the receiver to USDC (DEFINITE). §3.3 static sources (twelve.toml, NatSpec, name heuristic) cover the rest.
+- A compound write `cell += x` contributes `x`'s unit to the cell, so a cross-view write is reported once as TW-005 at the write site, never additionally as TW-001 (§6).
+- Merges of two *local* values in different views (Phi) become `Unknown` silently; only storage cells produce TW-005.
+- Callee findings are attributed to the callee; summaries are memoized per `(function, argument units)` per fixpoint iteration; state reads always come from the cell, never from Slither's state-variable Phis (SLITHIR_NOTES §7).
+
 ### 4.3 Literal magnitude heuristic
 `require(msg.value >= 1e6)` — `1e6` alone is ambiguous: scale or "1 USDC in 6-dec"? In an **additive/comparison** position against an amount of exp `e`, a power-of-ten literal `10^k` is treated as an amount `(1,k)`:
 - if `|e - k| == 12` → **TW-006** (HEURISTIC): "threshold magnitude matches the other view".
@@ -158,7 +165,7 @@ Literals that aren't powers of ten are never interpreted as amounts.
 | TW-005 | STORAGE_UNIT_MERGE | a state cell written with both views | HIGH if both writers DEFINITE, else MEDIUM |
 | TW-006 | LITERAL_OTHER_VIEW | §4.3 | MEDIUM |
 | TW-007 | DUST_TRUNCATION | `(1,18) ⊘ (0,12)` result sent via ERC-20 while remainder is not accounted | INFO |
-| TW-008 | EXP_DRIFT | an amount with `dim=1` and `exp ∉ {6,18}` reaches a sink or a comparison with a view | LOW (often fee math with a missing divisor) |
+| TW-008 | EXP_DRIFT | an amount with `dim=1` and `exp ∉ [0,18]` reaches a sink or a comparison with a view — only a conversion applied in the wrong direction (`a18 * 1e12` → 30, `a6 / 1e12` → −6) gets there; in-range drift is indistinguishable from WAD/ppm fixed-point math and stays silent (ADR-019) | LOW |
 | TW-900 | UNRESOLVED_TOKEN_MIX | §3.4 | INFO |
 
 Severity is then capped by confidence: HEURISTIC ⇒ max MEDIUM; INFERRED ⇒ unchanged except TW-005 as noted.
@@ -211,6 +218,7 @@ Severity is then capped by confidence: HEURISTIC ⇒ max MEDIUM; INFERRED ⇒ un
   "tool": {"name": "twelve", "version": "0.1.0", "gitCommit": "…", "slither": "x.y.z", "rulesHash": "…"},
   "target": {"chainId": 5042, "address": "0x…", "codehash": "0x…", "kind": "contract|eip1967Proxy|beaconProxy",
              "implementation": {"address": "0x…", "codehash": "0x…"} },
+             // pre-deploy mode: {"kind": "source", "files": ["<standard-JSON source unit names>"]}
   "input": {"standardJsonHash": "0x…", "compiler": "0.8.x+commit.…", "evmVersion": "…", "optimizer": {"enabled": true, "runs": 200},
             "bytecodeMatch": {"status": "exact|masked", "maskedRanges": [[…]]}, "bindingBlock": 123},
   "bindings": [{"var": "Vault.usdc", "value": "0x3600…", "method": "immutable|storage|constant|config|nameHeuristic", "mutable": false}],
