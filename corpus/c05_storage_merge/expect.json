@@ -1,0 +1,12 @@
+{
+  "findings": [
+    {
+      "rule": "TW-005",
+      "severity": "HIGH",
+      "function": "depositErc20(uint256)",
+      "line": 24
+    }
+  ],
+  "verdict": "FINDINGS",
+  "safeVerdict": "CLEAN"
+}

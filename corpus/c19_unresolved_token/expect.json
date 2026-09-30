@@ -1,0 +1,18 @@
+{
+  "findings": [
+    {
+      "rule": "TW-900",
+      "severity": "INFO",
+      "function": "buy()",
+      "line": 21
+    },
+    {
+      "rule": "TW-900",
+      "severity": "INFO",
+      "function": "buy()",
+      "line": 22
+    }
+  ],
+  "verdict": "CLEAN",
+  "safeVerdict": "CLEAN"
+}

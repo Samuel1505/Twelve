@@ -1,0 +1,54 @@
+{
+  "highRecall": [
+    11,
+    11
+  ],
+  "highSafeFp": 0,
+  "rules": {
+    "TW-001": {
+      "matched": 1,
+      "expected": 1,
+      "safeFp": 0
+    },
+    "TW-002": {
+      "matched": 3,
+      "expected": 3,
+      "safeFp": 0
+    },
+    "TW-003": {
+      "matched": 2,
+      "expected": 2,
+      "safeFp": 0
+    },
+    "TW-004": {
+      "matched": 4,
+      "expected": 4,
+      "safeFp": 0
+    },
+    "TW-005": {
+      "matched": 1,
+      "expected": 1,
+      "safeFp": 0
+    },
+    "TW-006": {
+      "matched": 1,
+      "expected": 1,
+      "safeFp": 0
+    },
+    "TW-007": {
+      "matched": 1,
+      "expected": 1,
+      "safeFp": 0
+    },
+    "TW-008": {
+      "matched": 1,
+      "expected": 1,
+      "safeFp": 0
+    },
+    "TW-900": {
+      "matched": 2,
+      "expected": 2,
+      "safeFp": 0
+    }
+  }
+}

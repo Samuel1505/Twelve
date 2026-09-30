@@ -1,0 +1,12 @@
+{
+  "findings": [
+    {
+      "rule": "TW-002",
+      "severity": "HIGH",
+      "function": "borrowAll()",
+      "line": 25
+    }
+  ],
+  "verdict": "FINDINGS",
+  "safeVerdict": "CLEAN"
+}

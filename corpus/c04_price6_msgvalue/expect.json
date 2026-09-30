@@ -1,0 +1,12 @@
+{
+  "findings": [
+    {
+      "rule": "TW-002",
+      "severity": "HIGH",
+      "function": "buy()",
+      "line": 23
+    }
+  ],
+  "verdict": "FINDINGS",
+  "safeVerdict": "CLEAN"
+}

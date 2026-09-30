@@ -1,0 +1,12 @@
+{
+  "findings": [
+    {
+      "rule": "TW-003",
+      "severity": "HIGH",
+      "function": "refund()",
+      "line": 26
+    }
+  ],
+  "verdict": "FINDINGS",
+  "safeVerdict": "CLEAN"
+}

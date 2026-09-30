@@ -1,0 +1,12 @@
+{
+  "findings": [
+    {
+      "rule": "TW-002",
+      "severity": "HIGH",
+      "function": "paysDues()",
+      "line": 19
+    }
+  ],
+  "verdict": "FINDINGS",
+  "safeVerdict": "CLEAN"
+}

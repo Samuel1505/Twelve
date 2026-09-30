@@ -1,0 +1,12 @@
+{
+  "findings": [
+    {
+      "rule": "TW-008",
+      "severity": "LOW",
+      "function": "forward(address)",
+      "line": 17
+    }
+  ],
+  "verdict": "CLEAN",
+  "safeVerdict": "CLEAN"
+}

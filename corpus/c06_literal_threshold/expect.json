@@ -1,0 +1,12 @@
+{
+  "findings": [
+    {
+      "rule": "TW-006",
+      "severity": "MEDIUM",
+      "function": "tip()",
+      "line": 17
+    }
+  ],
+  "verdict": "FINDINGS",
+  "safeVerdict": "CLEAN"
+}

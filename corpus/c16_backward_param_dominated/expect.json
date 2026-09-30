@@ -1,0 +1,12 @@
+{
+  "findings": [
+    {
+      "rule": "TW-003",
+      "severity": "HIGH",
+      "function": "depositAndTip(uint256)",
+      "line": 19
+    }
+  ],
+  "verdict": "FINDINGS",
+  "safeVerdict": "CLEAN"
+}

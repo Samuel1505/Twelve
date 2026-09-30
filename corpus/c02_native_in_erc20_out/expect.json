@@ -1,0 +1,12 @@
+{
+  "findings": [
+    {
+      "rule": "TW-004",
+      "severity": "HIGH",
+      "function": "withdraw()",
+      "line": 24
+    }
+  ],
+  "verdict": "FINDINGS",
+  "safeVerdict": "CLEAN"
+}
