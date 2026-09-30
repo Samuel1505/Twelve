@@ -3,9 +3,10 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "exports": { ".": "./src/index.ts" },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "echo 'no tests yet'"
+    "test": "node --experimental-strip-types --test test/*.test.ts"
   },
   "dependencies": {
     "viem": "2.57.1"
