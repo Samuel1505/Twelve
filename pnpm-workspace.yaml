@@ -2,5 +2,7 @@ packages:
   - apps/*
   - packages/*
   - scripts/phase0
+allowBuilds:
+  esbuild: true
 minimumReleaseAgeExclude:
   - viem@2.57.1

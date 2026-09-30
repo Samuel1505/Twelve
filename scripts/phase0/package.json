@@ -1,0 +1,23 @@
+{
+  "name": "@twelve/phase0",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Phase 0 ground-truth spikes. Each script prints one PASS/FAIL line per fact.",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "echo 'phase0 scripts run against live endpoints: pnpm --filter @twelve/phase0 all'",
+    "chain-id": "tsx chain-id.ts",
+    "logs": "tsx logs.ts",
+    "getlogs-range": "tsx getlogs-range.ts",
+    "blockscout": "tsx blockscout.ts",
+    "all": "tsx chain-id.ts && tsx logs.ts && tsx getlogs-range.ts && tsx blockscout.ts"
+  },
+  "dependencies": {
+    "@twelve/shared": "workspace:*",
+    "viem": "2.57.1"
+  },
+  "devDependencies": {
+    "tsx": "4.23.15"
+  }
+}
