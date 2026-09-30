@@ -83,3 +83,18 @@ contract A {
     }
 }""")
     assert core["findings"] == [] and core["verdict"] == "CLEAN"
+
+
+def test_assembly_on_value_path_is_incomplete(tmp_path: Path) -> None:
+    core = _scan(tmp_path, """
+contract A {
+    function f() external payable {
+        uint256 v = msg.value;
+        assembly { v := shr(1, v) }
+        (bool ok,) = payable(msg.sender).call{value: v}("");
+        require(ok);
+    }
+}""")
+    assert core["findings"] == []
+    assert core["coverage"]["unsupported"] == [{"function": "A.f()", "reason": "UNSUPPORTED_ASM"}]
+    assert core["verdict"] == "INCOMPLETE"
