@@ -60,9 +60,9 @@ Within one transaction, for a system log `S(from, to, v18)`:
 
 An ERC-20 log with no matching system log is a data anomaly (indexer bug or protocol change) ⇒ raise an ops alert, never silently drop.
 
-**Log ordering [TESTNET, Phase 0]:** the system log is emitted immediately **before** its ERC-20 twin (adjacent `logIndex` 4 → 5 in tx `0x89cf56aa70d9222e883be7ef43e0721c23def1806e642d3f636a757a58b8dc75`, testnet block 64807933). One sample; the pairing algorithm still must not assume adjacency: pair by `(from, to, value)` equality within the tx, FIFO by `logIndex`. `VERIFY:` same ordering on mainnet (owner: Phase 0 mainnet run, needs `ARC_RPC_URL`).
+**Log ordering [OBSERVED, Phase 0]:** the system log is emitted immediately **before** its ERC-20 twin. Mainnet: `logIndex` 10 → 11 in tx `0xf48fa394df0bdbd00f519812ed5450801eefc953003d92df9c540a8b0373858b` (block 23570812, v18 = 7791023000000000000, v6 = 7791023). Testnet: 4 → 5 in tx `0x89cf56aa70d9222e883be7ef43e0721c23def1806e642d3f636a757a58b8dc75`. That is one sample per network, so the pairing algorithm still must not assume adjacency: pair by `(from, to, value)` equality within the tx, FIFO by `logIndex`.
 
-**Gas is not logged [TESTNET, Phase 0]:** native send `0x7a5105e9…b281e` (fee 420000000000000 wei-USDC) has exactly 1 system log, which is the value transfer; zero-value tx `0x423f8cef…be61c` (fee 63379875000000000) has 0 system logs; the Hello contract-creation tx `0xdf54835a…5f55` has 0 logs. Monitor must not expect gas in logs. `VERIFY:` on mainnet (owner: Phase 0 mainnet run).
+**Gas is not logged [OBSERVED, Phase 0]:** mainnet native send `0xf5f4ccb677b9fc1990e6401c7ff359d7cb54390cd95998946641a3e2564f95a2` (fee 507050708766000) has exactly 1 system log, which is the value transfer; mainnet zero-value tx `0xa38de0c7a26e83c41883b7ae144895c3005701cd162f1ed1f8684a67679abf96` (fee 4286400000000000) has 0 system logs. Testnet agrees (`0x7a5105e9…`, `0x423f8cef…`, and the Hello creation `0xdf54835a…` with 0 logs). Monitor must not expect gas in logs.
 
 ---
 
@@ -72,7 +72,7 @@ An ERC-20 log with no matching system log is a data anomaly (indexer bug or prot
 |---|---|---|---|
 | Chain ID | `5042` | `5042002` | [DOC] |
 | RPC | `https://rpc.mainnet.arc.io` (listed **permissioned**) | `https://rpc.testnet.arc.io` | [DOC] |
-| Provider in use (Phase 0) | Infura `https://arc-mainnet.infura.io/v3/<PROJECT_ID>` (**no project ID yet**: bare host returns 404, `/v3/` returns 401 `invalid project id`) | dRPC `https://arc-testnet.drpc.org`: `eth_chainId` = `0x4cef52` ✓; **`eth_getLogs` max span 101 blocks on free plan** (error code 35, whose message wrongly says "ranges over 10000 blocks"; a sparse filter over 1000 blocks is rejected too, so this is a span limit, not a result cap) | observed |
+| Provider in use (Phase 0) | Infura (`https://arc-mainnet.infura.io/<key path>`): `eth_chainId` = `0x13b2` ✓. **`eth_getLogs`: max span 10,000 blocks** (`-32614 "eth_getLogs is limited to a 10,000 range"`) **and a response-size cap** ("HTTP response body exceeded the size limit"): the system-emitter filter failed above 3,812 blocks near head (block ~23.57M). Backfill needs ≥ 2,357 calls with adaptive halving on the size error. | dRPC `https://arc-testnet.drpc.org`: `eth_chainId` = `0x4cef52` ✓; **`eth_getLogs` max span 101 blocks on free plan** (error code 35, whose message wrongly says "ranges over 10000 blocks"; a sparse filter over 1000 blocks is rejected too, so this is a span limit, not a result cap) | observed |
 | WS | `wss://rpc.quicknode.mainnet.arc.io` (in docs' viem chain def) | `wss://rpc.testnet.arc.io` | [DOC] |
 | Explorer | `https://explorer.arc.io` (listed permissioned) | `https://explorer.testnet.arc.io` | [DOC] |
 | Explorer API | Blockscout Pro API `https://api.blockscout.com/5042/api/v2/...` (key required; **auth = `?apikey=<key>` query param**, observed on 5042002) | same with `5042002` ✓ | observed |
@@ -88,7 +88,7 @@ Mainnet went live on 16 September 2026. [3P]
 
 - EVM baseline **Osaka**, plus EIP-7708 ahead of upstream (Amsterdam track). EIP-7702 supported. [DOC]
 - Native-coin **precompiles** back the `0x3600…` interface, EIP-7708 logs, and **USDC blocklist enforcement**; these only surface against an Arc RPC endpoint. [DOC] ⇒ local anvil cannot reproduce ERC-20-view semantics. See invariant I8.
-- **Anatomy of `0x3600…` [TESTNET, Phase 0]:** it is ordinary EVM code, a **ZeppelinOS-style `AdminUpgradeabilityProxy`** (solc 0.6.12 per CBOR). Implementation in slot `keccak("org.zeppelinos.proxy.implementation")` = `0x7050c9e0…f8c3` → `0xC6AD664ac6679F4Ce74e10E91449C93Ec1ae3cA6`; admin slot `0x10d6a54a…390b` → `0x49f78af090f1f98e7184b7f61f1f1a8a8064b40d`; the **EIP-1967 slot is empty**. `decimals()` = 6, `symbol()` = `USDC`. `balanceOf` is computed in plain EVM (returns `floor(native / 10¹²)`). `transfer` delegates to the **native-coin precompile at `0x1800000000000000000000000000000000000000`** as `transfer(from, to, amount6 * 10¹²)`, i.e. the ERC-20 view converts to 18-dec before moving the native balance. `eth_getCode(0x1800…)` = `0x01` (placeholder). The ERC-20 view is **upgradeable by its admin**.
+- **Anatomy of `0x3600…` [MAINNET + TESTNET, Phase 0]:** proxy runtime is identical on both networks (codehash `0xc9987bd3af6b26a030951faa7eacc017b68343aeedf3ce5fe68f821c4b93939d`) with the same implementation `0xC6AD664a…3cA6`. Admins differ: mainnet `0x9005e53e3ee2f27999f15e7a52c58f804fc716e0`, testnet `0x49f78af090f1f98e7184b7f61f1f1a8a8064b40d`. `eth_getCode(0x1800…)`: mainnet `0xef`, testnet `0x01`. Both are placeholders; neither is real code. Details (observed on testnet): it is ordinary EVM code, a **ZeppelinOS-style `AdminUpgradeabilityProxy`** (solc 0.6.12 per CBOR). Implementation in slot `keccak("org.zeppelinos.proxy.implementation")` = `0x7050c9e0…f8c3` → `0xC6AD664ac6679F4Ce74e10E91449C93Ec1ae3cA6`; admin slot `0x10d6a54a…390b` → `0x49f78af090f1f98e7184b7f61f1f1a8a8064b40d`; the **EIP-1967 slot is empty**. `decimals()` = 6, `symbol()` = `USDC`. `balanceOf` is computed in plain EVM (returns `floor(native / 10¹²)`). `transfer` delegates to the **native-coin precompile at `0x1800000000000000000000000000000000000000`** as `transfer(from, to, amount6 * 10¹²)`, i.e. the ERC-20 view converts to 18-dec before moving the native balance. `eth_getCode(0x1800…)` = `0x01` (placeholder). The ERC-20 view is **upgradeable by its admin**.
 - **Fork tests [TESTNET, Phase 0]:** `forge test --fork-url` executes `0x3600` **reads** correctly (`balanceOf` 19994219 == floor(19994219546750000000 / 10¹²)) but **not writes**: `transfer` hits the `0x01` placeholder at `0x1800` → `EvmError: StackUnderflow` → revert. Anything that moves USDC through the ERC-20 view must be tested by broadcasting to testnet (proposed ADR-017).
 - **Compiler / EVM [TESTNET, Phase 0]:** solc **0.8.37** (latest release) and **0.8.30** with `evm_version = osaka` both deploy and run on testnet: Hello at `0x3C24c652B7b9EcD0CAD86df5E58a4B2f006602C0` (0.8.37, tx `0xdf54835af5aa89ae2deae8e728dfdab0dcbefa2fa7e0a8c314caaa6019aa5f55`, block 64808102) and `0xFFa3A0Ea10FE30a5d7c0F1B5597c189A38364E67` (0.8.30, tx `0x5b4018b78f495b6db21ca6a4a01ae8ebc0369846bbca14f281543b9b8b0c28cd`); `hello()` returns `"twelve"` on both.
 - No WETH. [DOC/3P]
@@ -120,12 +120,12 @@ Mainnet went live on 16 September 2026. [3P]
 
 Run each against live endpoints, record results here, delete the `VERIFY:` markers you resolve.
 
-- [ ] `eth_chainId` on the chosen mainnet provider returns `0x13b2` (5042). — **BLOCKED**: `ARC_RPC_URL` is a bare Infura host with no project ID. Testnet ✓ `0x4cef52`.
-- [ ] Pick one mainnet ERC-20 USDC transfer; confirm two logs, emitters, `v18 == v6 * 10¹²`; record ordering. — **PASS on testnet** (§2.1, tx `0x89cf56aa…dc75`: v18 = 29463000000000000, v6 = 29463; system before ERC-20, adjacent). Mainnet **BLOCKED**.
-- [ ] Pick one native send; confirm exactly one system log, zero `0x3600…` logs. — **PASS on testnet** (tx `0x7a5105e9778dc26b9386fcde2c62e2c3ce4295b364fe6f9ebd3b2099e7fb281e`; log (from,to,value) == tx). Mainnet **BLOCKED**.
-- [ ] Confirm gas deduction produces no Transfer log. — **PASS on testnet** (§2.1). Mainnet **BLOCKED**.
-- [ ] `eth_getLogs` max block range and result cap on the chosen provider. — Testnet dRPC free: **101 blocks** (§3), not viable for backfill. Mainnet provider **BLOCKED**.
-- [x] Blockscout Pro `smart-contracts/<addr>` response shape. — Fixture `analyzer/tests/fixtures/blockscout_smart_contract.json` (testnet `Exchange` @ `0xd32fA21c25c22bf4afBEF4ac07D9E34e2367d709`, solc 0.8.28, cancun, 15 additional sources). Fields: `source_code` (str), `additional_sources` (`[{file_path, source_code}]`), `file_path`, `compiler_version` (`v0.8.28+commit.7893614a`, note the leading `v`), `compiler_settings` (a **complete solc `settings` object**: `evmVersion, libraries, metadata, optimizer, outputSelection, remappings, viaIR`), `evm_version`, `optimization_enabled`, `optimization_runs`, `constructor_args`, `deployed_bytecode`, `creation_bytecode`, `external_libraries`, `proxy_type`, `implementations`, `is_fully_verified`, `is_partially_verified`, `language`. **`immutable_references` is absent**: take it from our own compile's `evm.deployedBytecode.immutableReferences` (as ANALYZER §3 already assumes). Auth: `?apikey=`. Mainnet (5042) shape assumed identical: same Blockscout instance family.
+- [x] `eth_chainId` on the chosen mainnet provider returns `0x13b2` (5042). — ✓ Infura; testnet ✓ `0x4cef52` (dRPC).
+- [x] ERC-20 transfer ⇒ two logs, emitters, `v18 == v6 * 10¹²`, ordering. — ✓ mainnet tx `0xf48fa394…858b` and testnet tx `0x89cf56aa…dc75`; system log first, adjacent (§2.1).
+- [x] Native send ⇒ exactly one system log, zero `0x3600…` logs. — ✓ mainnet tx `0xf5f4ccb6…95a2` (3000002.31 USDC; log (from,to,value) == tx), testnet `0x7a5105e9…b281e`.
+- [x] Gas deduction produces no Transfer log. — ✓ mainnet and testnet (§2.1).
+- [x] `eth_getLogs` max block range and result cap. — Infura mainnet: 10,000-block span + response-size cap (§3). dRPC free testnet: 101 blocks.
+- [x] Blockscout Pro `smart-contracts/<addr>` response shape. — Fixture `analyzer/tests/fixtures/blockscout_smart_contract.json` is **mainnet** `ArgusV5RewardedToken` @ `0x02BDfB67Ed8d94C6edB839C9dF8b632159291754` (solc 0.8.24, cancun, 7 additional sources); the testnet response (`Exchange` @ `0xd32fA21c…d709`) has the same field set. Fields: `source_code` (str), `additional_sources` (`[{file_path, source_code}]`), `file_path`, `compiler_version` (**format inconsistent**: testnet `v0.8.28+commit.7893614a`, mainnet `0.8.24+commit.e11b9ed9`, so strip an optional leading `v`), `compiler_settings` (a **complete solc `settings` object**: `evmVersion, libraries, metadata, optimizer, outputSelection, remappings, viaIR`), `evm_version`, `optimization_enabled`, `optimization_runs`, `constructor_args`, `deployed_bytecode`, `creation_bytecode`, `external_libraries`, `proxy_type`, `implementations`, `is_fully_verified`, `is_partially_verified`, `language`. **`immutable_references` is absent**: take it from our own compile's `evm.deployedBytecode.immutableReferences` (as ANALYZER §3 already assumes). Auth: `?apikey=`. Mainnet (5042) confirmed: same fields, same auth.
 - [x] Highest solc + Foundry `evm_version` accepted for Arc; deploy hello-world to testnet. — **solc 0.8.37 + `osaka`** deploys (§4). Repo pin stays 0.8.30 until the owner decides (CLAUDE.md §8). Mainnet deploy pending (needs mainnet USDC).
 - [x] Whether `forge test --fork-url <arc-testnet>` exercises the `0x3600…` precompiles. — **Reads yes, writes no** (§4). `contracts/test-arc/Precompile.t.sol`: 2 pass, `transfer` fails with StackUnderflow at `0x1800`.
 - [ ] Obtain a small mainnet USDC balance for deployer and attester. — **NOT STARTED** (no mainnet spend this phase). Testnet: deployer `0x89a68d0731F9Bc419d606f1F31Ead04c3fBDFdd6` holds ~20 USDC; attester `0xe98540d28F45830E01D237251Bfc4777E69c9A46` ≠ deployer (I12 ✓).
@@ -134,7 +134,7 @@ Run each against live endpoints, record results here, delete the `VERIFY:` marke
 
 ## 8. Phase 0 log
 
-Runs: 2026-09-30. Offline half + **testnet** live half done. Mainnet facts are blocked on a usable `ARC_RPC_URL`.
+Runs: 2026-09-30. Offline, testnet and **mainnet (read-only)** checks done. The only open item is funding mainnet deployer/attester.
 Raw receipts and responses: `docs/evidence/phase0/`.
 
 ### 8.1 Results
@@ -151,13 +151,15 @@ Raw receipts and responses: `docs/evidence/phase0/`.
 | solc / evm_version on Arc | 0.8.37 + osaka ✓ | Hello `0x3C24…02C0` |
 | Fork executes `0x3600` | reads ✓ / writes ✗ | `test-arc/Precompile.t.sol` |
 | `0x3600` is a ZOS proxy over `0x1800` precompile | new fact | §4 |
-| Mainnet anything | **BLOCKED** | needs Infura project ID (or another provider) |
+| Mainnet chain ID / log pairing / gas / native send | ✓ all pass, same as testnet | `docs/evidence/phase0/mainnet-*.json` |
+| Mainnet getLogs (Infura) | 10,000-block span + response-size cap | §3 |
+| Mainnet `0x3600` | same proxy + implementation as testnet; different admin | §4 |
 
 ### 8.2 Deviations from doc assumptions
 
 - `0x3600…` is an **upgradeable ZOS-slot proxy**, not a bare precompile. (a) Twelve's own proxy detection (ANALYZER/ARCHITECTURE: EIP-1967 impl + beacon only) would classify contracts using the legacy ZOS slot as plain contracts. Proposed ADR-018. (b) Circle can upgrade the ERC-20 view; the `Upgraded` topic is in its bytecode, so the monitor can watch it.
 - Fork tests cannot exercise ERC-20-view writes → `test-arc/` writes must broadcast (proposed ADR-017; ADR-008 already requires testnet, this changes the mechanism).
-- Free-tier providers impose tiny `eth_getLogs` spans (dRPC: 101). Backfill-from-genesis (MONITOR) needs a paid plan or an indexer source; choose with the mainnet provider.
-- Blockscout returns `compiler_version` with a leading `v` and no `immutable_references`.
+- Providers cap `eth_getLogs` (dRPC free: 101 blocks; Infura: 10,000 blocks **and** response size). MONITOR backfill must page by span and halve on the size error; it must not assume a fixed window.
+- Blockscout `compiler_version` has a leading `v` on testnet but not on mainnet; no `immutable_references` on either.
 - `Contract addresses` source in the header uses `docs.arc.network`; every other source uses `docs.arc.io`. `VERIFY:` which domain is canonical (owner: next docs pass) before §5 is resolved.
 - crytic-compile mutates its standard-JSON input and drops `optimizer.details` (proposed ADR-016).
