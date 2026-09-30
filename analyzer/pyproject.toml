@@ -3,7 +3,10 @@ name = "twelve"
 version = "0.1.0"
 description = "Arc decimal-unit dataflow analyzer (USDC 6-dec vs 18-dec views)"
 requires-python = "==3.12.*"
-dependencies = []
+dependencies = [
+    "slither-analyzer==0.11.6",
+    "crytic-compile==0.4.2",
+]
 
 [project.scripts]
 twelve = "twelve.cli:main"
