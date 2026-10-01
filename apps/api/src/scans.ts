@@ -5,7 +5,7 @@ import { VERDICT_CODE, canonicalJson, reportHash, type ReportCore } from "@twelv
 import type { Analyzer } from "./analyzer.js";
 import { toolVersionString } from "./analyzer.js";
 import type { AttestRequest, Attester } from "./attester.js";
-import { codehashOf } from "./chain.js";
+import { codehashOf, currentImplementation } from "./chain.js";
 import { CHAINS, type ChainId } from "./config.js";
 import {
   attestedReport, findReport, getReport, getScan, insertReport, setState, upsertAttestation, type Db,
@@ -78,6 +78,17 @@ export async function processScan(d: ScanDeps, scanId: string): Promise<void> {
   if (hash) {
     const row = await getReport(d.db, hash);
     core = row ? (JSON.parse(row.core_jcs) as ReportCore) : null;
+    // A proxy's own code does not change on upgrade: a cached proxy report is reusable only while the proxy still
+    // points at the same implementation with the same code. Otherwise re-attesting it would be a false CLEAN for
+    // code that is no longer behind the proxy (found by the Phase 4 D4 exit run).
+    if (core && core.target.kind !== "source" && core.target.implementation) {
+      const impl = await currentImplementation(client, address, core.target.kind);
+      const implHash = impl ? await codehashOf(client, impl) : null;
+      if (!impl || impl.toLowerCase() !== core.target.implementation.address || implHash !== core.target.implementation.codehash) {
+        hash = null;
+        core = null;
+      }
+    }
   }
   if (!hash || !core) {
     // stage events arrive from the analyzer's stderr; chain them so DB/SSE order matches pipeline order

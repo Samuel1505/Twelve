@@ -25,11 +25,15 @@ after(async () => {
   await drop();
 });
 
-function coreFor(address: Address, codehash: Hex, verdict: "CLEAN" | "FINDINGS"): ReportCore {
+function coreFor(address: Address, codehash: Hex, verdict: "CLEAN" | "FINDINGS",
+  impl?: { address: Address; codehash: Hex }): ReportCore {
   return {
     schemaVersion: 1,
     tool: { name: "twelve", version: TOOL.version, gitCommit: TOOL.gitCommit, slither: TOOL.slither, rulesHash: TOOL.rulesHash },
-    target: { chainId: 5042002, address: address.toLowerCase(), codehash, kind: "contract" },
+    target: impl
+      ? { chainId: 5042002, address: address.toLowerCase(), codehash, kind: "eip1967Proxy",
+          implementation: { address: impl.address.toLowerCase(), codehash: impl.codehash } }
+      : { chainId: 5042002, address: address.toLowerCase(), codehash, kind: "contract" },
     input: { standardJsonHash: `0x${"22".repeat(32)}`, compiler: "0.8.30+commit.73712a01", evmVersion: "osaka",
       optimizer: { enabled: true, runs: 200 }, bytecodeMatch: { status: "exact", maskedRanges: [] }, bindingBlock: 1 },
     bindings: [],
@@ -124,4 +128,40 @@ test("an address with no code is NOT_A_CONTRACT without running the analyzer", a
   await processScan(deps(an), id);
   assert.equal((await getScan(db, id))!.state, "NOT_A_CONTRACT");
   assert.equal(an.calls, 0);
+});
+
+test("proxy dedupe: a cached report is NOT reused after the implementation changes (no stale re-attest)", async () => {
+  const proxy = await chain.deploy(initCodeFor(11));
+  const v1 = await chain.deploy(initCodeFor(12));
+  const v2 = await chain.deploy(initCodeFor(13));
+  const SLOT = "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc";
+  const point = (impl: Address) => chain.pub.request({ method: "anvil_setStorageAt" as never,
+    params: [proxy, SLOT, `0x${impl.slice(2).toLowerCase().padStart(64, "0")}`] as never });
+  await point(v1);
+  const seen: Address[] = [];
+  const an: Analyzer & { calls: number } = {
+    calls: 0,
+    tool: async () => TOOL,
+    scan: async (_c, address) => {
+      an.calls += 1;
+      const slot = await chain.pub.getStorageAt({ address: getAddress(address), slot: SLOT });
+      const impl = getAddress(`0x${slot!.slice(-40)}`);
+      seen.push(impl);
+      const code = (a: Address) => chain.pub.getCode({ address: a }).then((c) => keccak256(c!));
+      const core = coreFor(getAddress(address), await code(getAddress(address)), "CLEAN", { address: impl, codehash: await code(impl) });
+      return ok({ reportHash: reportHash(core), core, meta: {} });
+    },
+  };
+  await processScan(deps(an), await newScan(proxy));
+  await processScan(deps(an), await newScan(proxy)); // same implementation: cached
+  assert.equal(an.calls, 1);
+  await point(v2);
+  const id = await newScan(proxy);
+  await processScan(deps(an), id);
+  assert.equal(an.calls, 2, "implementation changed: must rescan, not reuse");
+  assert.deepEqual(seen.map((a) => a.toLowerCase()), [v1, v2].map((a) => a.toLowerCase()));
+  const d = deps(an);
+  const rec = await chain.pub.readContract({ address: chain.registry, abi: twelveRegistryAbi, functionName: "get",
+    args: [d.attester!.address, proxy] });
+  assert.equal(rec.implementation.toLowerCase(), v2.toLowerCase());
 });
