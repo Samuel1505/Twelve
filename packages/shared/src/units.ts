@@ -59,3 +59,9 @@ export const parseUsdc18 = (s: string): Usdc18 => usdc18(parseDecimal(s, USDC18_
 export const parseUsdc6 = (s: string): Usdc6 => usdc6(parseDecimal(s, USDC6_DECIMALS));
 export const formatUsdc18 = (a: Usdc18): string => formatDecimal(a, USDC18_DECIMALS);
 export const formatUsdc6 = (a: Usdc6): string => formatDecimal(a, USDC6_DECIMALS);
+
+/**
+ * Raw-integer equality ACROSS views — deliberately unit-violating. This is the 10^12 bug's fingerprint (MONITOR D1):
+ * one variable fed both interfaces unscaled. Use only for detection, never for accounting.
+ */
+export const rawEqualAcrossViews = (a18: Usdc18, b6: Usdc6): boolean => (a18 as bigint) === (b6 as bigint);

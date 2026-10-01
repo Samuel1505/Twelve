@@ -5,6 +5,19 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "echo 'no tests yet'"
+    "test": "tsx --test test/*.test.ts",
+    "dev": "tsx --env-file-if-exists=../../.env src/index.ts",
+    "replay": "tsx --env-file-if-exists=../../.env src/replay.ts"
+  },
+  "dependencies": {
+    "@twelve/db": "workspace:*",
+    "@twelve/shared": "workspace:*",
+    "pg": "8.23.1",
+    "viem": "2.57.1",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/pg": "8.23.1",
+    "tsx": "4.23.15"
   }
 }
