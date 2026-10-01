@@ -14,11 +14,11 @@ const ZERO = "0x0000000000000000000000000000000000000000";
 
 export type Checkpoint = { block: bigint; hash: Hex };
 
-export async function getCheckpoint(db: Db, chainId: number): Promise<Checkpoint | null> {
-  const r = await db.query<{ block: string; block_hash: Buffer }>(
-    "SELECT block, block_hash FROM checkpoints WHERE chain_id = $1 AND stream = $2", [chainId, STREAM]);
+export async function getCheckpoint(db: Db, chainId: number): Promise<(Checkpoint & { completeHistory: boolean }) | null> {
+  const r = await db.query<{ block: string; block_hash: Buffer; complete_history: boolean }>(
+    "SELECT block, block_hash, complete_history FROM checkpoints WHERE chain_id = $1 AND stream = $2", [chainId, STREAM]);
   const row = r.rows[0];
-  return row ? { block: BigInt(row.block), hash: toHex(row.block_hash) } : null;
+  return row ? { block: BigInt(row.block), hash: toHex(row.block_hash), completeHistory: row.complete_history } : null;
 }
 
 export async function loadProfiles(db: Db, chainId: number, completeHistory: boolean): Promise<Map<Address, Profile>> {
@@ -71,6 +71,7 @@ export type WindowWrite = {
   alerts: readonly Alert[];
   registry: readonly RegistryEvent[];
   attester: Address;
+  completeHistory: boolean;
 };
 
 /** Persist one window atomically. Returns the ids of alerts that were newly inserted (dedupe + cooldown applied). */
@@ -157,9 +158,9 @@ export async function persistWindow(db: Db, w: WindowWrite): Promise<{ id: strin
       await c.query("SELECT pg_notify('twelve_alerts', $1)", [id]);
     }
     await c.query(
-      `INSERT INTO checkpoints (chain_id, stream, block, block_hash) VALUES ($1,$2,$3,$4)
+      `INSERT INTO checkpoints (chain_id, stream, block, block_hash, complete_history) VALUES ($1,$2,$3,$4,$5)
        ON CONFLICT (chain_id, stream) DO UPDATE SET block = EXCLUDED.block, block_hash = EXCLUDED.block_hash, updated_at = now()`,
-      [w.chainId, STREAM, w.checkpoint.block.toString(), toBytes(w.checkpoint.hash)]);
+      [w.chainId, STREAM, w.checkpoint.block.toString(), toBytes(w.checkpoint.hash), w.completeHistory]);
     await c.query("COMMIT");
     return inserted;
   } catch (e) {

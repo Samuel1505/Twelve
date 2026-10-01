@@ -23,29 +23,34 @@ export type FollowDeps = {
   accounts: Accounts;
   revoke: Revoker | null;
   window: bigint;
-  onAlert?: (a: Alert) => void;
+  onAlert?: (a: Alert, meta: { stepMs: number; blockTimestamp: string }) => void;
   log: (msg: string, extra?: Record<string, unknown>) => void;
 };
 
 /** Process the next window. Returns the new checkpoint, or the same one when already at head. */
 export async function step(d: FollowDeps, cp: Checkpoint): Promise<{ cp: Checkpoint; head: bigint; alerts: number }> {
+  const t0 = Date.now();
   const head = await d.client.getBlockNumber();
   if (head <= cp.block) return { cp, head, alerts: 0 };
   const from = cp.block + 1n;
   const to = head < cp.block + d.window ? head : cp.block + d.window;
 
+  // one round trip for headers and logs together (detection latency target < 2 s, MONITOR §1); continuity is still
+  // verified before anything from this window is processed or persisted
+  const proxies = proxiesOf(d.state.attestations);
+  const [first, last, raw] = await Promise.all([
+    d.client.getBlock({ blockNumber: from }),
+    to === from ? null : d.client.getBlock({ blockNumber: to }),
+    getLogsAdaptive(d.client, logFilter(d.registry, proxies), from, to),
+  ]);
   // continuity (I9): the first new block must extend the checkpointed hash
-  const first = await d.client.getBlock({ blockNumber: from });
   if (cp.block >= 0n && first.parentHash !== cp.hash) {
     const err = `parentHash of block ${from} is ${first.parentHash}, checkpoint ${cp.block} is ${cp.hash}`;
     await opsAlert(d.db, d.chainId, { detector: "CONTINUITY", severity: "OPS", address: null, tx: null, block: from,
       evidence: { note: "continuity violated: ingestion halted (I9)", detail: err }, dedupeKey: `CONTINUITY:${d.chainId}:${from}` });
     throw new ContinuityError(err);
   }
-  const last = to === from ? first : await d.client.getBlock({ blockNumber: to });
-
-  const proxies = proxiesOf(d.state.attestations);
-  const raw = await getLogsAdaptive(d.client, logFilter(d.registry, proxies), from, to);
+  const lastBlock = last ?? first;
   const dec = decodeLogs(d.chainId, raw, d.registry, proxies);
 
   // registry first: an attestation in this window governs D4/D5 for later logs (≤ 1 window delay, MONITOR §7)
@@ -63,10 +68,11 @@ export async function step(d: FollowDeps, cp: Checkpoint): Promise<{ cp: Checkpo
   const batch = processBatch(d.state, dec.transfers);
   alerts.push(...await onlyContracts(batch.alerts, (xs) => d.accounts.resolve(xs), (x) => d.accounts.map.get(x)));
 
-  const newCp = { block: to, hash: last.hash as Hex };
+  const newCp = { block: to, hash: lastBlock.hash as Hex };
   const inserted = await persistWindow(d.db, {
     chainId: d.chainId, checkpoint: newCp, transfers: dec.transfers, movements: batch.movements,
     profiles: [...batch.changed].map((a) => d.state.profiles.get(a)!), alerts, registry: dec.registry, attester: d.attester,
+    completeHistory: d.state.completeHistory,
   });
 
   // side effects strictly after commit: a crash before here replays the window idempotently
@@ -82,7 +88,8 @@ export async function step(d: FollowDeps, cp: Checkpoint): Promise<{ cp: Checkpo
       if (cur) d.state.attestations.set(proxy, { ...cur, revoked: true });
     }
   }
-  for (const { alert } of inserted) d.onAlert?.(alert);
+  const meta = { stepMs: Date.now() - t0, blockTimestamp: String(lastBlock.timestamp) };
+  for (const { alert } of inserted) d.onAlert?.(alert, meta);
   return { cp: newCp, head, alerts: inserted.length };
 }
 

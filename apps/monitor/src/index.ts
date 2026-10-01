@@ -29,8 +29,8 @@ async function main(): Promise<void> {
   const saved = await getCheckpoint(db, chainId);
   const startBlock = env.MONITOR_START_BLOCK ?? 0n;
   // genesis backfill gives exact balances; starting mid-chain marks profiles incomplete (D3/BALANCE off for them).
-  // MONITOR_START_BLOCK must stay the same across restarts of one database for this to be meaningful.
-  const completeHistory = startBlock === 0n;
+  // Fixed at first start and persisted with the checkpoint: a restart never re-derives it from configuration.
+  const completeHistory = saved ? saved.completeHistory : startBlock === 0n;
   const cp = saved ?? (startBlock === 0n
     ? { block: -1n, hash: zeroHash }
     : { block: startBlock - 1n, hash: (await client.getBlock({ blockNumber: startBlock - 1n })).hash });
@@ -49,8 +49,8 @@ async function main(): Promise<void> {
   await follow({
     db, client, chainId, registry: env.REGISTRY_ADDRESS ?? null, attester: env.ATTESTER_ADDRESS, state, accounts,
     revoke: env.ADMIN_TOKEN ? apiRevoker(env.API_URL, env.ADMIN_TOKEN, log) : null, window: env.MONITOR_WINDOW, log,
-    onAlert: (a) => {
-      log("alert", { detector: a.detector, severity: a.severity, address: a.address, tx: a.tx, block: a.block?.toString() });
+    onAlert: (a, meta) => {
+      log("alert", { detector: a.detector, severity: a.severity, address: a.address, tx: a.tx, block: a.block?.toString(), ...meta });
       if (env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_CHAT_ID) void telegram(env.TELEGRAM_BOT_TOKEN, env.TELEGRAM_CHAT_ID, chainId, a);
     },
   }, cp, env.MONITOR_POLL_MS);
