@@ -76,21 +76,31 @@ async function main(): Promise<void> {
   const filter = logFilter(registry, new Set());
   const inflight: Promise<{ from: bigint; to: bigint; logs: Awaited<ReturnType<typeof getLogsAdaptive>> }>[] = [];
   let cursor = next;
+  // adaptive window: aim for ~TARGET_LOGS per request from the observed density. Dense history (7–23 logs/block near
+  // block 12.87M) would otherwise need many sequential 20k-result splits per 10k-block window under rate limiting.
+  const TARGET_LOGS = 8_000;
+  let density = 0; // logs per block, exponential moving average
+  const windowSize = (): bigint => {
+    if (density <= 0) return a.window;
+    const w = BigInt(Math.max(100, Math.min(Number(a.window), Math.floor(TARGET_LOGS / density))));
+    return w;
+  };
   const launch = () => {
     while (inflight.length < a.concurrency && cursor <= to) {
       const f = cursor;
-      const e = f + a.window - 1n > to ? to : f + a.window - 1n;
+      const size = windowSize();
+      const e = f + size - 1n > to ? to : f + size - 1n;
       cursor = e + 1n;
       inflight.push(getLogsAdaptive(client, filter, f, e).then((logs) => ({ from: f, to: e, logs })));
     }
   };
   let windows = 0;
   let savedAt = Date.now();
-  // watchdog: a replay that makes no progress for 5 minutes exits (resumable from the state file) instead of idling
+  // watchdog: a replay that makes no progress for 15 minutes exits (resumable from the state file) instead of idling
   let progressAt = Date.now();
   const watchdog = setInterval(() => {
-    if (Date.now() - progressAt > 5 * 60_000) {
-      console.error(`watchdog: no progress for 5 min at block ${next}; exiting (resume with the same command)`);
+    if (Date.now() - progressAt > 15 * 60_000) {
+      console.error(`watchdog: no progress for 15 min at block ${next}; exiting (resume with the same command)`);
       process.exit(3);
     }
   }, 30_000);
@@ -124,6 +134,8 @@ async function main(): Promise<void> {
     next = w.to + 1n;
     windows++;
     progressAt = Date.now();
+    const d = w.logs.length / Number(w.to - w.from + 1n);
+    density = density === 0 ? d : 0.5 * density + 0.5 * d;
     if (windows % 20 === 0 || next > to) {
       const save = Date.now() - savedAt > 120_000 || next > to;
       const done = Number(next - a.from) / Number(to - a.from + 1n);
