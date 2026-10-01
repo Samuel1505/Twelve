@@ -130,6 +130,14 @@ def _cmd_verify(args: argparse.Namespace) -> int:
     return 0 if ok else 1
 
 
+def _cmd_tool(_: argparse.Namespace) -> int:
+    from twelve.report import SCHEMA_VERSION
+    from twelve.scan import tool_info
+
+    print(json.dumps({**tool_info(), "schemaVersion": SCHEMA_VERSION}, sort_keys=True))
+    return 0
+
+
 def _cmd_rules(_: argparse.Namespace) -> int:
     for rid in sorted(RULES):
         r = RULES[rid]
@@ -155,6 +163,8 @@ def main(argv: list[str] | None = None) -> None:
     v.add_argument("--report", required=True, help="JSON from `twelve scan --address … --json`")
     v.add_argument("--expect", help="reportHash to compare against if the file has none")
     v.set_defaults(func=_cmd_verify)
+    t = sub.add_parser("tool", help="print the tool identity as JSON (reportCore.tool + schemaVersion)")
+    t.set_defaults(func=_cmd_tool)
     r = sub.add_parser("rules", help="list rules")
     r.set_defaults(func=_cmd_rules)
     args = p.parse_args(argv)

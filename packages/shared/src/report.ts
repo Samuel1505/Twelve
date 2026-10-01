@@ -81,11 +81,16 @@ export const AnalyzerOutput = z.union([
 ]);
 export type AnalyzerOutput = z.infer<typeof AnalyzerOutput>;
 
+/** RFC 8785 canonical JSON text (the exact bytes that are hashed and served). */
+export function canonicalJson(value: unknown): string {
+  const canonical = canonicalize(value);
+  if (canonical === undefined) throw new TypeError("value is not canonicalizable");
+  return canonical;
+}
+
 /** reportHash = keccak256(JCS(reportCore)) (I6, ADR-006) — must equal the Python analyzer's value byte for byte. */
 export function reportHash(core: unknown): Hex {
-  const canonical = canonicalize(core);
-  if (canonical === undefined) throw new TypeError("report core is not canonicalizable");
-  return keccak256(toHex(canonical));
+  return keccak256(toHex(canonicalJson(core)));
 }
 
 export const VERDICT_CODE = { CLEAN: 1, FINDINGS: 2, INCOMPLETE: 3 } as const;
