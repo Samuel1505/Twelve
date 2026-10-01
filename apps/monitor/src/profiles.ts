@@ -6,22 +6,22 @@ import type { Movement } from "./types.js";
 export const BUCKETS = 64;
 const RATIO_PRECISION = 10n ** 9n; // fixed-point precision for max_out_frac (a dimensionless ratio)
 
+/** Profiles exist for every address that moves USDC (ADR-020); contract-ness lives in the accounts cache and is
+ *  resolved only for alert candidates. Histograms are sparse: bucket → count. */
+export type Hist = Record<number, number>;
 export type Profile = {
   address: Address;
-  isContract: boolean;
-  delegated: boolean;
   nOut: { native: number; erc20: number };
-  hist: { native: number[]; erc20: number[] };
+  hist: { native: Hist; erc20: Hist };
   balance18: Usdc18;
   maxOutFrac: number; // dimensionless
   updatedBlock: bigint;
   balanceUnderflow: boolean; // movements implied a negative balance: history incomplete → ops signal
+  completeHistory: boolean; // seen from genesis: balance is exact (contracts pay no gas). Required by D3 and BALANCE.
 };
 
-export const emptyProfile = (address: Address, isContract: boolean, delegated: boolean, block: bigint,
-  seed: Usdc18 = usdc18(0n)): Profile => ({
-  address, isContract, delegated, nOut: { native: 0, erc20: 0 },
-  hist: { native: Array(BUCKETS).fill(0), erc20: Array(BUCKETS).fill(0) },
+export const emptyProfile = (address: Address, block: bigint, completeHistory = true, seed: Usdc18 = usdc18(0n)): Profile => ({
+  address, nOut: { native: 0, erc20: 0 }, hist: { native: {}, erc20: {} }, completeHistory,
   balance18: seed, maxOutFrac: 0, updatedBlock: block, balanceUnderflow: false,
 });
 
@@ -55,8 +55,13 @@ export function massNear(p: Profile, amount: bigint, orders: number): number {
 }
 
 const clone = (p: Profile): Profile => ({
-  ...p, nOut: { ...p.nOut }, hist: { native: [...p.hist.native], erc20: [...p.hist.erc20] },
+  ...p, nOut: { ...p.nOut }, hist: { native: { ...p.hist.native }, erc20: { ...p.hist.erc20 } },
 });
+
+/** Dense 64-bucket array (DB int[] column). */
+export const dense = (h: Hist): number[] => Array.from({ length: BUCKETS }, (_, b) => h[b] ?? 0);
+export const sparse = (a: readonly number[]): Hist =>
+  Object.fromEntries(a.map((n, b) => [b, n] as const).filter(([, n]) => n > 0));
 
 /** Apply one tx's movements touching `p.address`. Returns a new profile (snapshots stay immutable). */
 export function applyTx(p: Profile, movements: readonly Movement[], block: bigint): Profile {

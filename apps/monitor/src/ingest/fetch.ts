@@ -8,6 +8,19 @@ export type LogFilter = { address: string[]; topics: string[][] };
 const HINT = /retry with the range (\d+)-(\d+)/;
 const TOO_BIG = /exceeds max results|size limit|response body exceeded|too large|limited to a 10,000 range|ranges over/i;
 
+/** Full text of an error and its cause chain (viem wraps provider messages), with URLs redacted: provider URLs
+ *  carry API keys and must never reach logs (I11). */
+export function errorText(e: unknown): string {
+  const parts: string[] = [];
+  let cur: unknown = e;
+  for (let i = 0; cur && i < 8; i++) {
+    const x = cur as { message?: string; details?: string; shortMessage?: string; cause?: unknown };
+    for (const s of [x.shortMessage, x.details, x.message]) if (s) parts.push(s);
+    cur = x.cause;
+  }
+  return parts.join(" | ").replace(/https?:\/\/[^\s"']+/g, "<rpc-url>");
+}
+
 export async function getLogsAdaptive(client: PublicClient, filter: LogFilter, from: bigint, to: bigint,
   attempt = 0): Promise<RpcLog[]> {
   try {
@@ -16,7 +29,7 @@ export async function getLogsAdaptive(client: PublicClient, filter: LogFilter, f
       params: [{ ...filter, fromBlock: `0x${from.toString(16)}`, toBlock: `0x${to.toString(16)}` }] as never,
     })) as unknown as RpcLog[];
   } catch (e) {
-    const msg = e instanceof Error ? `${e.message} ${(e as { details?: string }).details ?? ""}` : String(e);
+    const msg = errorText(e);
     if (TOO_BIG.test(msg) && to > from) {
       const hint = HINT.exec(msg);
       let mid = (from + to) / 2n;
@@ -32,6 +45,6 @@ export async function getLogsAdaptive(client: PublicClient, filter: LogFilter, f
       await new Promise((r) => setTimeout(r, 400 * 2 ** attempt + Math.random() * 200));
       return getLogsAdaptive(client, filter, from, to, attempt + 1);
     }
-    throw e;
+    throw new Error(`eth_getLogs [${from}, ${to}] failed: ${msg.slice(0, 400)}`);
   }
 }

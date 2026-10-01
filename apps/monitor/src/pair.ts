@@ -3,7 +3,11 @@
 import { isSameAmount, usdc18, usdc6 } from "@twelve/shared";
 import { ZERO_ADDRESS, type Movement, type TransferLog } from "./types.js";
 
-export type Paired = { movements: Movement[]; unpaired: TransferLog[] };
+export type Paired = { movements: Movement[]; unpaired: TransferLog[]; noops: TransferLog[] };
+
+/** ERC-20 logs that legitimately have no system twin (observed on mainnet, ARC_LEDGER §2.2): zero-value transfers and
+ *  self-transfers move no balance, so EIP-7708 emits nothing for them. */
+export const isNoopErc20 = (l: TransferLog): boolean => l.value === 0n || l.from === l.to;
 
 export function pairTx(logs: readonly TransferLog[]): Paired {
   const sorted = [...logs].sort((a, b) => a.logIndex - b.logIndex);
@@ -31,7 +35,7 @@ export function pairTx(logs: readonly TransferLog[]): Paired {
       from: s.from, to: s.to, amount18: a18, raw6: twin ? usdc6(twin.value) : null, iface,
     });
   }
-  // an ERC-20 log without a system twin is a data anomaly (indexer bug or protocol change): never silently drop
-  const unpaired = erc20.filter((e) => !used.has(e.logIndex));
-  return { movements, unpaired };
+  // any other ERC-20 log without a system twin is a data anomaly (indexer bug or protocol change): never silently drop
+  const leftover = erc20.filter((e) => !used.has(e.logIndex));
+  return { movements, unpaired: leftover.filter((l) => !isNoopErc20(l)), noops: leftover.filter(isNoopErc20) };
 }

@@ -10,16 +10,18 @@ export type TxContext = {
   block: bigint;
   tx: Hex;
   movements: readonly Movement[];
-  isContract: (a: Address) => boolean;
   profile: (a: Address) => Profile | undefined;
   attestation: (a: Address) => AttestationView | undefined;
 };
 
-/** Contracts that appear in this tx, in first-appearance order (deterministic alert order). */
+const ZERO = "0x0000000000000000000000000000000000000000";
+
+/** Addresses in this tx, first-appearance order (deterministic). Detectors treat each as a *candidate*; alerts on
+ *  addresses that turn out not to be contracts are dropped by the caller after a cached getCode (ADR-020). */
 export function contractsIn(ctx: TxContext): Address[] {
   const seen: Address[] = [];
   for (const m of ctx.movements) {
-    for (const a of [m.to, m.from]) if (!seen.includes(a) && ctx.isContract(a)) seen.push(a);
+    for (const a of [m.to, m.from]) if (a !== ZERO && !seen.includes(a)) seen.push(a);
   }
   return seen;
 }

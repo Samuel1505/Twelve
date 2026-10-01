@@ -7,16 +7,20 @@ import { d5 } from "./detectors/d5.js";
 import type { AttestationView, TxContext } from "./detectors/context.js";
 import { pairTx } from "./pair.js";
 import { applyTx, emptyProfile, type Profile } from "./profiles.js";
-import type { Alert, Movement, TransferLog } from "./types.js";
+import { ZERO_ADDRESS, type Alert, type Movement, type TransferLog } from "./types.js";
 
 export type Account = { isContract: boolean; delegated: boolean };
 
 export type EngineState = {
   chainId: number;
-  profiles: Map<Address, Profile>;
-  accounts: Map<Address, Account>; // must be resolved for every address in the batch before processing
+  profiles: Map<Address, Profile>; // every address that moved USDC (ADR-020)
   attestations: Map<Address, AttestationView>;
+  /** true when ingestion started at genesis: new profiles then have exact balances (MONITOR §1 backfill). */
+  completeHistory: boolean;
 };
+
+/** Detectors whose subject must be a contract; their candidates are filtered by `onlyContracts`. */
+const CONTRACT_DETECTORS = new Set(["D1", "D2", "D3", "D5", "BALANCE"]);
 
 export type BatchResult = { movements: Movement[]; alerts: Alert[]; changed: Set<Address> };
 
@@ -45,7 +49,6 @@ export function addressesOf(logs: readonly TransferLog[]): Address[] {
 
 export function processBatch(state: EngineState, logs: readonly TransferLog[]): BatchResult {
   const out: BatchResult = { movements: [], alerts: [], changed: new Set() };
-  const isContract = (a: Address) => state.accounts.get(a)?.isContract ?? false;
   for (const txLogs of groupByTx(logs)) {
     const first = txLogs[0];
     if (!first) continue;
@@ -61,7 +64,7 @@ export function processBatch(state: EngineState, logs: readonly TransferLog[]): 
     out.movements.push(...movements);
     if (movements.length === 0) continue;
     const ctx: TxContext = {
-      chainId: state.chainId, block: first.block, tx: first.tx, movements, isContract,
+      chainId: state.chainId, block: first.block, tx: first.tx, movements,
       profile: (a) => state.profiles.get(a), attestation: (a) => state.attestations.get(a),
     };
     const a1 = d1(ctx);
@@ -69,12 +72,11 @@ export function processBatch(state: EngineState, logs: readonly TransferLog[]): 
 
     // profiles after detection: detectors judged this tx against history *before* it
     const touched = new Set<Address>();
-    for (const m of movements) for (const a of [m.from, m.to]) if (isContract(a)) touched.add(a);
+    for (const m of movements) for (const a of [m.from, m.to]) if (a !== ZERO_ADDRESS) touched.add(a);
     for (const a of touched) {
-      const acc = state.accounts.get(a)!;
-      const prev = state.profiles.get(a) ?? emptyProfile(a, true, acc.delegated, first.block);
+      const prev = state.profiles.get(a) ?? emptyProfile(a, first.block, state.completeHistory);
       const next = applyTx(prev, movements.filter((m) => m.from === a || m.to === a), first.block);
-      if (next.balanceUnderflow && !prev.balanceUnderflow) {
+      if (next.balanceUnderflow && !prev.balanceUnderflow && next.completeHistory) {
         out.alerts.push({
           detector: "BALANCE", severity: "OPS", address: a, tx: first.tx, block: first.block,
           evidence: { note: "movements imply a negative balance: profile history incomplete" },
@@ -86,4 +88,12 @@ export function processBatch(state: EngineState, logs: readonly TransferLog[]): 
     }
   }
   return out;
+}
+
+/** Keep alerts whose subject is a contract (or 7702-delegated EOA). Resolves only the candidates, with a cache. */
+export async function onlyContracts(alerts: readonly Alert[],
+  resolve: (a: readonly Address[]) => Promise<void>, account: (a: Address) => Account | undefined): Promise<Alert[]> {
+  const need = [...new Set(alerts.filter((a) => CONTRACT_DETECTORS.has(a.detector) && a.address).map((a) => a.address!))];
+  if (need.length) await resolve(need);
+  return alerts.filter((a) => !CONTRACT_DETECTORS.has(a.detector) || !a.address || account(a.address)?.isContract === true);
 }

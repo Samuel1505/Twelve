@@ -4,7 +4,7 @@ import { getAddress, keccak256, toHex, type Address } from "viem";
 import { USDC_SCALE, parseUsdc18, twelveRegistryAbi, usdc18 } from "@twelve/shared";
 import { ATTESTED_TOPIC, REVOKED_TOPIC } from "../src/decode.js";
 import { d4 } from "../src/detectors/d4.js";
-import { processBatch, type EngineState } from "../src/engine.js";
+import { onlyContracts, processBatch, type Account, type EngineState } from "../src/engine.js";
 import { applyTx, bucketOf, emptyProfile, medianOut, type Profile } from "../src/profiles.js";
 import type { Movement } from "../src/types.js";
 import { A, TX, erc20Transfer, sys } from "./fixtures.js";
@@ -13,12 +13,12 @@ const C = A(0xc0);
 const USER = A(0xaa);
 
 function state(over: Partial<EngineState> = {}): EngineState {
-  return {
-    chainId: 5042, profiles: new Map(), attestations: new Map(),
-    accounts: new Map([[C, { isContract: true, delegated: false }]]),
-    ...over,
-  };
+  return { chainId: 5042, profiles: new Map(), attestations: new Map(), completeHistory: true, ...over };
 }
+
+const accounts = new Map<Address, Account>([[C, { isContract: true, delegated: false }], [USER, { isContract: false, delegated: false }]]);
+const contractsOnly = (alerts: Parameters<typeof onlyContracts>[0]) =>
+  onlyContracts(alerts, async () => undefined, (a) => accounts.get(a));
 
 const history = (p: Profile, n: number, amount18: bigint): Profile => {
   let q = p;
@@ -28,20 +28,22 @@ const history = (p: Profile, n: number, amount18: bigint): Profile => {
   return q;
 };
 
-test("D1 fires on the LeakyRefund shape: ERC-20 in y, native out raw y (underpay)", () => {
+test("D1 fires on the LeakyRefund shape: ERC-20 in y, native out raw y (underpay)", async () => {
   const paid6 = 5_000_000n; // 5 USDC in the ERC-20 view
   const logs = [...erc20Transfer(1, USER, C, paid6), sys(1, C, USER, paid6)];
   const r = processBatch(state(), logs);
-  const d1 = r.alerts.filter((a) => a.detector === "D1");
+  const d1 = (await contractsOnly(r.alerts)).filter((a) => a.detector === "D1");
   assert.equal(d1.length, 1);
   assert.equal(d1[0]?.severity, "HIGH");
   assert.equal((d1[0]?.evidence as { kind: string }).kind, "underpay");
 });
 
-test("D1 fires on the overpay shape: native in x, ERC-20 out raw x", () => {
+test("D1 fires on the overpay shape: native in x, ERC-20 out raw x", async () => {
   const x = 2_000_000n;
   const r = processBatch(state(), [sys(1, USER, C, x), ...erc20Transfer(1, C, USER, x)]);
-  assert.equal(r.alerts.filter((a) => a.detector === "D1").length, 1);
+  const d1 = (await contractsOnly(r.alerts)).filter((a) => a.detector === "D1");
+  assert.equal(d1.length, 1);
+  assert.equal((d1[0]?.evidence as { kind: string }).kind, "overpay");
 });
 
 test("D1 does not fire on a correct conversion, below the floor, or for EOAs", () => {
@@ -50,25 +52,40 @@ test("D1 does not fire on a correct conversion, below the floor, or for EOAs", (
   assert.equal(correct.alerts.filter((a) => a.detector === "D1").length, 0);
   const tiny = processBatch(state(), [...erc20Transfer(2, USER, C, 9_999n), sys(2, C, USER, 9_999n)]);
   assert.equal(tiny.alerts.filter((a) => a.detector === "D1").length, 0);
-  const eoa = processBatch(state({ accounts: new Map() }), [...erc20Transfer(3, USER, C, paid6), sys(3, C, USER, paid6)]);
-  assert.equal(eoa.alerts.length, 0);
+});
+
+test("candidates on EOAs are dropped after (cached) code resolution; unknown addresses get resolved", async () => {
+  // the D1 shape is symmetric: the EOA counterparty mirrors it and is a candidate too, until resolution drops it
+  const r = processBatch(state(), [...erc20Transfer(3, C, USER, 5_000_000n), sys(3, USER, C, 5_000_000n)]);
+  assert.ok(r.alerts.some((a) => a.detector === "D1" && a.address === USER));
+  const kept = (await contractsOnly(r.alerts)).filter((a) => a.detector === "D1");
+  assert.deepEqual(kept.map((a) => a.address), [C]);
+  const resolved: Address[] = [];
+  const unknown = A(0xdd);
+  const r2 = processBatch(state(), [...erc20Transfer(4, USER, unknown, 5_000_000n), sys(4, unknown, USER, 5_000_000n)]);
+  const kept2 = await onlyContracts(r2.alerts, async (xs) => {
+    resolved.push(...xs);
+    for (const x of xs) if (!accounts.has(x)) accounts.set(x, { isContract: true, delegated: false });
+  }, (a) => accounts.get(a));
+  assert.ok(resolved.includes(unknown));
+  assert.deepEqual(kept2.filter((a) => a.detector === "D1").map((a) => a.address), [unknown]);
 });
 
 test("D2: a 10^9 collapse versus a 20+ outflow history fires; routine tiny senders are suppressed", () => {
-  const p = history(emptyProfile(C, true, false, 1n), 30, parseUsdc18("10"));
+  const p = history(emptyProfile(C, 1n), 30, parseUsdc18("10"));
   assert.ok((medianOut(p) ?? 0n) > 0n);
   const fire = processBatch(state({ profiles: new Map([[C, p]]) }), [sys(1, C, USER, 1_000n)]);
   assert.equal(fire.alerts.filter((a) => a.detector === "D2").length, 1);
-  const young = history(emptyProfile(C, true, false, 1n), 5, parseUsdc18("10"));
+  const young = history(emptyProfile(C, 1n), 5, parseUsdc18("10"));
   assert.equal(processBatch(state({ profiles: new Map([[C, young]]) }), [sys(1, C, USER, 1_000n)])
     .alerts.filter((a) => a.detector === "D2").length, 0);
-  const mixed = history(history(emptyProfile(C, true, false, 1n), 25, parseUsdc18("10")), 5, 2_000n);
+  const mixed = history(history(emptyProfile(C, 1n), 25, parseUsdc18("10")), 5, 2_000n);
   assert.equal(processBatch(state({ profiles: new Map([[C, mixed]]) }), [sys(1, C, USER, 1_000n)])
     .alerts.filter((a) => a.detector === "D2").length, 0);
 });
 
 test("D3: sweeping >= 90% of a 100+ USDC balance that never moved >= 10% fires", () => {
-  let p = history(emptyProfile(C, true, false, 1n), 25, parseUsdc18("1"));
+  let p = history(emptyProfile(C, 1n), 25, parseUsdc18("1"));
   p = { ...p, balance18: parseUsdc18("1000"), maxOutFrac: 0.05 };
   const r = processBatch(state({ profiles: new Map([[C, p]]) }), [sys(1, C, USER, parseUsdc18("950"))]);
   const d3 = r.alerts.filter((a) => a.detector === "D3");
@@ -95,12 +112,21 @@ test("D4: only live attested proxies trigger a revoke", () => {
   assert.equal(d4(u, { verdict: 1, revoked: false, implementation: A(0xba) })?.revoke, true);
 });
 
+test("partial history: no BALANCE signal and no D3 (balances unknown)", () => {
+  const r = processBatch(state({ completeHistory: false }), [sys(1, C, USER, 5n)]);
+  assert.equal(r.alerts.filter((a) => a.detector === "BALANCE").length, 0);
+  let p = history(emptyProfile(C, 1n, false), 25, parseUsdc18("1"));
+  p = { ...p, balance18: parseUsdc18("1000"), maxOutFrac: 0.05 };
+  assert.equal(processBatch(state({ profiles: new Map([[C, p]]) }), [sys(2, C, USER, parseUsdc18("950"))])
+    .alerts.filter((a) => a.detector === "D3").length, 0);
+});
+
 test("profiles: buckets, balance and underflow signal", () => {
   assert.equal(bucketOf(0n), 0);
   assert.equal(bucketOf(999n), 2);
   assert.equal(bucketOf(parseUsdc18("1")), 18);
   const r = processBatch(state(), [sys(1, C, USER, 5n)]); // outflow with no known inflow history
-  assert.ok(r.alerts.some((a) => a.detector === "BALANCE"));
+  assert.ok(r.alerts.some((a) => a.detector === "BALANCE" && a.address === C));
 });
 
 test("registry topics match the ABI", () => {

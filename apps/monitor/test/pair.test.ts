@@ -39,9 +39,13 @@ test("transferFrom by a third party: from is the owner, not the caller", () => {
   assert.equal(r.movements[0]?.from, owner);
 });
 
-test("zero-value transfers still pair", () => {
-  const r = pairTx(erc20Transfer(1, A(1), A(2), 0n));
-  assert.equal(r.movements[0]?.iface, "erc20");
+test("zero-value and self ERC-20 transfers have no system twin and are no-ops, not anomalies (ARC_LEDGER §2.2)", () => {
+  const r = pairTx([erc(1, A(1), A(2), 0n), erc(1, A(3), A(3), 83_457_512n)]);
+  assert.equal(r.movements.length, 0);
+  assert.equal(r.unpaired.length, 0);
+  assert.equal(r.noops.length, 2);
+  // if a zero-value pair ever does appear, it still pairs
+  assert.equal(pairTx(erc20Transfer(2, A(1), A(2), 0n)).movements[0]?.iface, "erc20");
 });
 
 test("mint and burn (zero address) when unpaired", () => {

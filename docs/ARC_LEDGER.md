@@ -50,7 +50,7 @@ Arc's docs state the trap directly: don't mix `msg.value` with `USDC.balanceOf()
 
 Event ABI for both: `Transfer(address indexed from, address indexed to, uint256 value)`.
 
-**Critical:** one ERC-20 `transfer()` emits **both** logs. Match on emitter address to avoid double counting. [DOC] Mainnet has emitted the EIP-7708 log since genesis — full history is indexable from block 0. [DOC]
+**Critical:** one nonzero ERC-20 `transfer()` between distinct addresses emits **both** logs (exceptions: §2.2). Match on emitter address to avoid double counting. [DOC] Mainnet has emitted the EIP-7708 log since genesis — full history is indexable from block 0. [DOC]
 
 ### 2.1 The interface-classification rule (monitor depends on this)
 
@@ -63,6 +63,22 @@ An ERC-20 log with no matching system log is a data anomaly (indexer bug or prot
 **Log ordering [OBSERVED, Phase 0]:** the system log is emitted immediately **before** its ERC-20 twin. Mainnet: `logIndex` 10 → 11 in tx `0xf48fa394df0bdbd00f519812ed5450801eefc953003d92df9c540a8b0373858b` (block 23570812, v18 = 7791023000000000000, v6 = 7791023). Testnet: 4 → 5 in tx `0x89cf56aa70d9222e883be7ef43e0721c23def1806e642d3f636a757a58b8dc75`. That is one sample per network, so the pairing algorithm still must not assume adjacency: pair by `(from, to, value)` equality within the tx, FIFO by `logIndex`.
 
 **Gas is not logged [OBSERVED, Phase 0]:** mainnet native send `0xf5f4ccb677b9fc1990e6401c7ff359d7cb54390cd95998946641a3e2564f95a2` (fee 507050708766000) has exactly 1 system log, which is the value transfer; mainnet zero-value tx `0xa38de0c7a26e83c41883b7ae144895c3005701cd162f1ed1f8684a67679abf96` (fee 4286400000000000) has 0 system logs. Testnet agrees (`0x7a5105e9…`, `0x423f8cef…`, and the Hello creation `0xdf54835a…` with 0 logs). Monitor must not expect gas in logs.
+
+---
+
+### 2.2 ERC-20 logs without a system twin (observed, Phase 4)
+
+The "two logs per `transfer()`" rule holds only for **nonzero transfers between distinct addresses**. Mainnet replay of
+blocks 23,762,993–23,782,993 found 769 ERC-20 logs with no EIP-7708 twin, all in two classes:
+
+| Class | Count | Example | Why |
+|---|---|---|---|
+| zero-value ERC-20 transfer | 460 | tx `0x7f6ad66568fe3b181f2d3cf49ebf7216e38e119a6730c2832177b98b9623c14f` (logIndex 7, value 0) | nothing moved |
+| self-transfer (`from == to`) | 309 | tx `0x018d12fe42f3e6fe00a3febb3d818b6d596b7c86b8298ae85a1d7441096650c5` logIndex 46: `0xb92f…→0xb92f…` 83,457,512 raw; neighbours at 42/43 and 50/51 are normally paired | balance unchanged |
+
+The monitor classifies these as no-ops (`apps/monitor/src/pair.ts:isNoopErc20`); any **other** unpaired ERC-20 log
+remains an ops anomaly. `VERIFY:` whether zero-value *native* sends also emit no system log (owner: Phase 4 monitor;
+not needed by any detector — a zero-value movement carries no amount).
 
 ---
 

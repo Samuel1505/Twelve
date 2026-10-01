@@ -30,13 +30,13 @@ Per tx, sort both streams by `logIndex`. For each system log `S(f,t,v18)`:
 1. Find the first unconsumed ERC-20 log `E(f,t,v6)` in the same tx with `v18 == toUsdc18(v6)` → `iface = 'erc20'`, consume `E`.
 2. Else if `f == 0x0` → `mint`; `t == 0x0` → `burn`.
 3. Else → `iface = 'native'`.
-Leftover unconsumed `E` ⇒ ops anomaly alert (ARCHITECTURE §6).
+Leftover unconsumed `E` ⇒ ops anomaly alert (ARCHITECTURE §6) — **except** zero-value and self (`from == to`) ERC-20 transfers, which have no system twin by protocol behavior (ARC_LEDGER §2.2) and are no-ops.
 
 Conversions go through `packages/shared/src/units.ts` only (I1). The pairing test suite includes: two identical transfers in one tx, transferFrom by a third party (the `from` is the owner, not the caller), zero-value transfers, mint/burn.
 
 ## 3. Profiles (per address)
 
-Maintained incrementally per movement where `from` is a contract (`eth_getCode` cached; 7702-delegated EOAs are profiled as contracts with a flag):
+Maintained incrementally for **every** address that moves USDC; contract-ness (`eth_getCode`, cached in `accounts`; 7702-delegated EOAs count as contracts) is resolved lazily, only for addresses that produce a candidate alert (ADR-020):
 
 - `n_out[iface]` — count of outflows
 - `hist[iface][b]` — log10 magnitude histogram of outflow `amount_18` (64 buckets, bucket = ⌊log10(amount_18)⌋)
