@@ -34,7 +34,7 @@ Goal: replace every `VERIFY:` that blocks later phases with a recorded fact.
 - `apps/api`: scan state machine, pg-boss, content-addressed reports, status endpoint, SSE progress.
 - Attester: single-writer nonce, simulate-then-write, balance watchdog.
 - `TwelveGate` deploy.
-**Exit:** paste a mainnet address in `curl` → attestation on mainnet → `TwelveGate.forward` reverts for FINDINGS target and succeeds for CLEAN target, all on mainnet.
+**Exit:** paste a mainnet address in `curl` → attestation on mainnet → `TwelveGate.forward` reverts for FINDINGS target and succeeds for CLEAN target, all on mainnet. **Met 2026-10-01** — `docs/evidence/phase3-mainnet-e2e.md`.
 
 ## Phase 4 — Monitor
 - Backfill from genesis, head following, continuity check, pairing with anomaly alerts.
@@ -68,9 +68,11 @@ Goal: replace every `VERIFY:` that blocks later phases with a recorded fact.
 | Contract | Network | Address | Tx | Verified |
 |---|---|---|---|---|
 | TwelveRegistry | testnet 5042002 | `0x6670030e9df18e3a454ea77d69d00fd8d17728a1` | `0x487c850fea36e72bb6a4e0a5977c3c3a0c18fdd7628822fabbb2269c3f2ede33` | yes |
-| TwelveRegistry | mainnet 5042 | | | |
+| TwelveRegistry | mainnet 5042 | `0x6670030e9df18e3a454ea77d69d00fd8d17728a1` | `0x7633c978b3f9cd5f268c0614e681009cc03eabd6c05fee8ae692a3b1d3807801` | yes (Pro API) |
 | TwelveGate | testnet 5042002 | `0x7a63d663861f84cd0f6f66de29945620c1cc95b7` | `0x33ecf98c6730e067df458942f638ba3e4121f9f7b3af1e77bd5a07f68e526b41` | yes |
-| TwelveGate | mainnet | | | |
+| TwelveGate | mainnet 5042 | `0x7a63d663861f84cd0f6f66de29945620c1cc95b7` | `0x58d4030ebca61138373e7a608b1f0f09d2a7548150776fc046591ba5d35c6d19` | yes (Pro API) |
+| Gate target, FINDINGS (corpus c10 bug) | mainnet 5042 | `0x5a76d4ab409ca2114808edd38cb9a8343a34b7fb` | `0xf45cff6ca919bce7378bd1a80c413bd30238c70847afb0a7216da3f01eefb24d` | yes (Pro API) |
+| Gate target, CLEAN (corpus c10 safe) | mainnet 5042 | `0x42957b36f5623912ded1a0a16bba3dad22e571c9` | `0xf1e76ecb565fc077f279ce2c1dcfb1e42a4bfd0aa7dff81f65f857d5956348f1` | yes (Pro API) |
 | LeakyRefund | mainnet | | | |
 | FixedRefund | mainnet | | | |
 | OverpayVault | mainnet | | | |

@@ -93,7 +93,7 @@ return Status(a.verdict)
 A contract cannot read another contract's storage, so `status` **cannot** see that a proxy now points at a different implementation. It only sees that the *recorded* implementation's code is unchanged. Closing this gap is the monitor's job: it watches `Upgraded(address)` from every attested proxy and calls `revoke(target, "UPGRADED")` in the same few seconds (MONITOR.md §7). Consumers who need a trustless answer for proxies should treat `implementation != 0` as "trust the attester's liveness" — the UI says exactly that.
 
 ### 4.4 Gas
-Arc gas is paid in USDC at 18-dec native precision. `attest` writes 5 slots for a new record. Measured on Arc testnet (Phase 3): **124,116 gas × 32.5 gwei = 0.00403377 USDC per attestation** (txs in `docs/evidence/phase3-testnet-e2e.md`); local snapshot in `contracts/.gas-snapshot`. Re-measure on mainnet at deploy.
+Arc gas is paid in USDC at 18-dec native precision. `attest` writes 5 slots for a new record. Measured on Arc testnet (Phase 3): **124,116 gas × 32.5 gwei = 0.00403377 USDC per attestation** (txs in `docs/evidence/phase3-testnet-e2e.md`); local snapshot in `contracts/.gas-snapshot`. Mainnet (Phase 3): **124,116–124,128 gas × 20 gwei ≈ 0.00248 USDC per attestation**; deploy cost registry 590,695 gas (0.0118 USDC), gate 307,860 gas (0.0062 USDC).
 
 ## 5. Consumer pattern (what `TwelveGate` demonstrates)
 
@@ -125,4 +125,4 @@ Consumers may accept multiple attesters (k-of-n) — out of scope for the demo, 
 - invariant test: for any sequence of attest/revoke/etch, `isClean ⇒ status == CLEAN`.
 
 ## 8. Deployment
-`script/DeployRegistry.s.sol` with `DEPLOYER_PRIVATE_KEY`. Verify on Blockscout. Record address + deploy tx in `docs/BUILD_PLAN.md §Deployed`. Deploy to testnet first, run `test-arc/` suite, then mainnet. CREATE2 with a fixed salt so the testnet and mainnet addresses match (nice for docs; not required).
+`script/DeployRegistry.s.sol` with `DEPLOYER_PRIVATE_KEY` (mainnet additionally `ALLOW_MAINNET=1`). Verify on Blockscout: testnet via the public explorer API, mainnet via `scripts/verify-pro.sh` (Pro API form submit — the public mainnet explorer is permissioned and `forge verify-contract` cannot parse the Pro API's submit response on 5042). CREATE2 salts give the **same address on testnet and mainnet**. Record address + deploy tx in `docs/BUILD_PLAN.md §Deployed`. Deploy to testnet first, run `test-arc/` suite, then mainnet. CREATE2 with a fixed salt so the testnet and mainnet addresses match (nice for docs; not required).

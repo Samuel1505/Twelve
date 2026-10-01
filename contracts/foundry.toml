@@ -22,4 +22,4 @@ arc_testnet = "${ARC_TESTNET_RPC_URL}"
 
 [lint]
 # corpus imports resolve via include_paths at compile time; the linter does not follow them
-ignore = ["script/DeployCorpusDeployed.s.sol"]
+ignore = ["script/DeployCorpusDeployed.s.sol", "script/arc/DeployGateTargets.s.sol"]

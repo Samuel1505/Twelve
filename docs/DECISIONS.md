@@ -54,6 +54,7 @@ Format: Context → Options → Decision → Consequences. Append new ADRs; neve
 ### ADR-011 — Blockscout Pro API as the verified-source provider
 **Context.** Arc's official explorer is Blockscout; mainnet explorer listed as permissioned.
 **Decision.** Pro API (`api.blockscout.com/5042/...`) with key; Sourcify as a fallback if Arc is supported there (`VERIFY`).
+**Update (Phase 3).** The Pro API also accepts *verification* (etherscan-style `verifysourcecode` form POST + `checkverifystatus`) with the same key, on both networks, without the public explorer's rate limit. `scripts/verify-pro.sh` wraps it; it is the only working mainnet path (public explorer 403).
 
 ### ADR-012 — Single Postgres, pg-boss queue
 **Decision.** One database for jobs, reports, logs, profiles, alerts.
