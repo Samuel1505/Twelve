@@ -1,0 +1,110 @@
+{
+  "meta": {
+    "contract": "corpus/c10_storage_binding/bug.sol:StorageCashier",
+    "durationMs": 7016,
+    "scannedAt": 1790844935
+  },
+  "reportCore": {
+    "bindings": [
+      {
+        "method": "storage",
+        "mutable": true,
+        "value": "0x3600000000000000000000000000000000000000",
+        "var": "StorageCashier.payToken"
+      }
+    ],
+    "coverage": {
+      "functionsAnalyzed": 2,
+      "unsupported": []
+    },
+    "findings": [
+      {
+        "confidence": "DEFINITE",
+        "contract": "StorageCashier",
+        "fix": "Convert with Usdc.toErc20(...) (floor, returns dust) or pay natively.",
+        "function": "cashOut(address)",
+        "id": "0x7356a9cbff7396c935eec79ce940d8d9ba546599c0ff44775004aedad2e69075",
+        "left": {
+          "expr": "msg.value",
+          "unit": [
+            1,
+            18
+          ]
+        },
+        "location": {
+          "endCol": 41,
+          "endLine": 23,
+          "file": "corpus/c10_storage_binding/bug.sol",
+          "startCol": 9,
+          "startLine": 23
+        },
+        "message": "Native amount (18 decimals) flows into a USDC ERC-20 call (6 decimals): pays 10^12 times the intended amount, or reverts.",
+        "rule": "TW-004",
+        "severity": "HIGH",
+        "trace": [
+          {
+            "expr": "msg.value",
+            "loc": "corpus/c10_storage_binding/bug.sol:23",
+            "step": "source",
+            "unit": [
+              1,
+              18
+            ]
+          },
+          {
+            "expects": [
+              1,
+              6
+            ],
+            "expr": "payToken.transfer(to, msg.value)",
+            "loc": "corpus/c10_storage_binding/bug.sol:23",
+            "step": "sink"
+          }
+        ]
+      }
+    ],
+    "input": {
+      "bindingBlock": 64921161,
+      "bytecodeMatch": {
+        "maskedRanges": [
+          [
+            193,
+            32
+          ],
+          [
+            238,
+            32
+          ],
+          [
+            567,
+            53
+          ]
+        ],
+        "status": "masked"
+      },
+      "compiler": "0.8.30+commit.73712a01",
+      "evmVersion": "osaka",
+      "optimizer": {
+        "enabled": true,
+        "runs": 200
+      },
+      "standardJsonHash": "0xce65f204c2d0c17b92f56763678c632054d62c30585e3de8cbbb62ce57cdb564"
+    },
+    "schemaVersion": 1,
+    "target": {
+      "address": "0x42957b36f5623912ded1a0a16bba3dad22e571c9",
+      "chainId": 5042002,
+      "codehash": "0xb225c625da5783b2a091ed73284ffb72599253b12a174d9a49ccb1c39fcb0d65",
+      "kind": "contract"
+    },
+    "tool": {
+      "gitCommit": "354ab5ce89e0f113a822f122eb6cd9d29b0385dd",
+      "name": "twelve",
+      "rulesHash": "0x13c17f4f71514687081ec2196019672baace8bbf84d0fcbfb23eee49ab2107bb",
+      "slither": "0.11.6",
+      "version": "0.1.0"
+    },
+    "verdict": "FINDINGS"
+  },
+  "reportHash": "0x2f5ae58026f10fad4480d38a1e8e8c4c0b2bbdd11ce816703ad7d66372312239"
+}

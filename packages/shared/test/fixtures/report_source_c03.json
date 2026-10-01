@@ -1,0 +1,109 @@
+{
+  "meta": {
+    "durationMs": 94,
+    "scannedAt": 1790844928
+  },
+  "reportCore": {
+    "bindings": [
+      {
+        "method": "constant",
+        "mutable": false,
+        "value": "0x3600000000000000000000000000000000000000",
+        "var": "LeakyRefund.USDC"
+      }
+    ],
+    "coverage": {
+      "functionsAnalyzed": 2,
+      "unsupported": []
+    },
+    "findings": [
+      {
+        "confidence": "INFERRED",
+        "contract": "LeakyRefund",
+        "fix": "Convert with Usdc.toNative(...) before sending natively, or pay through the ERC-20 interface.",
+        "function": "refund()",
+        "id": "0x1ddf8bd715a4e304fd2c9510291c6a62f706e884f992f475e2f0b90285f63d04",
+        "left": {
+          "expr": "USDC.balanceOf(address(this))",
+          "unit": [
+            1,
+            6
+          ]
+        },
+        "location": {
+          "endCol": 62,
+          "endLine": 26,
+          "file": "bug.sol",
+          "startCol": 22,
+          "startLine": 26
+        },
+        "message": "USDC ERC-20 amount (6 decimals) is sent natively (18 decimals): pays 10^-12 of the intended amount (dust).",
+        "rule": "TW-003",
+        "severity": "HIGH",
+        "trace": [
+          {
+            "expr": "USDC.balanceOf(address(this))",
+            "loc": "bug.sol:18",
+            "step": "source",
+            "unit": [
+              1,
+              6
+            ]
+          },
+          {
+            "expr": "LeakyRefund.deposits",
+            "loc": "bug.sol:20",
+            "step": "store",
+            "unit": [
+              1,
+              6
+            ]
+          },
+          {
+            "expr": "LeakyRefund.deposits",
+            "loc": "bug.sol:24",
+            "step": "load",
+            "unit": [
+              1,
+              6
+            ]
+          },
+          {
+            "expects": [
+              1,
+              18
+            ],
+            "expr": "payable(msg.sender).call{value: amt}(\"\")",
+            "loc": "bug.sol:26",
+            "step": "sink"
+          }
+        ]
+      }
+    ],
+    "input": {
+      "compiler": "0.8.30+commit.73712a01",
+      "evmVersion": "osaka",
+      "optimizer": {
+        "enabled": false,
+        "runs": 200
+      },
+      "standardJsonHash": "0xcebc462d8362ef7488264c6cf50fb916178bbdad9aae9afd16e9fbc148a5935f"
+    },
+    "schemaVersion": 1,
+    "target": {
+      "files": [
+        "bug.sol"
+      ],
+      "kind": "source"
+    },
+    "tool": {
+      "gitCommit": "354ab5ce89e0f113a822f122eb6cd9d29b0385dd",
+      "name": "twelve",
+      "rulesHash": "0x13c17f4f71514687081ec2196019672baace8bbf84d0fcbfb23eee49ab2107bb",
+      "slither": "0.11.6",
+      "version": "0.1.0"
+    },
+    "verdict": "FINDINGS"
+  },
+  "reportHash": "0x0c5b10e0689cea227dee60bf9bfc7cd8fe7d8b2c267e560af6942c244415ac90"
+}
