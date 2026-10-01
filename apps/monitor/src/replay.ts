@@ -44,7 +44,7 @@ async function main(): Promise<void> {
   if (!url) throw new Error("missing ARC_RPC_URL / ARC_TESTNET_RPC_URL");
   const client = createPublicClient({ chain: a.chain === 5042 ? arcMainnet : arcTestnet,
     // no JSON-RPC batching: Infura's Arc endpoint mishandles batched requests (observed Phase 4)
-    transport: http(url, { retryCount: 5, retryDelay: 500, timeout: 120_000 }) }) as PublicClient;
+    transport: http(url, { retryCount: 3, retryDelay: 500, timeout: 40_000 }) }) as PublicClient;
   if ((await client.getChainId()) !== a.chain) throw new Error("RPC chainId mismatch (gotcha #7)");
   const head = await client.getBlockNumber();
   const to = a.to === "latest" ? head : a.to;
@@ -85,9 +85,20 @@ async function main(): Promise<void> {
     }
   };
   let windows = 0;
+  // watchdog: a replay that makes no progress for 5 minutes exits (resumable from the state file) instead of idling
+  let progressAt = Date.now();
+  const watchdog = setInterval(() => {
+    if (Date.now() - progressAt > 5 * 60_000) {
+      console.error(`watchdog: no progress for 5 min at block ${next}; exiting (resume with the same command)`);
+      process.exit(3);
+    }
+  }, 30_000);
+  watchdog.unref();
   launch();
   while (inflight.length) {
+    const tw = Date.now();
     const w = await inflight.shift()!; // applied strictly in block order
+    if (Date.now() - tw > 20_000) console.error(`slow window [${w.from}, ${w.to}]: ${Date.now() - tw} ms, ${w.logs.length} logs`);
     launch();
     const dec = decodeLogs(a.chain, w.logs, registry, new Set());
     for (const ev of dec.registry) {
@@ -111,6 +122,7 @@ async function main(): Promise<void> {
     nLogs += dec.transfers.length;
     next = w.to + 1n;
     windows++;
+    progressAt = Date.now();
     if (windows % 20 === 0 || next > to) {
       const save = windows % 200 === 0 || next > to;
       const done = Number(next - a.from) / Number(to - a.from + 1n);

@@ -6,7 +6,19 @@ import type { RpcLog } from "../decode.js";
 export type LogFilter = { address: string[]; topics: string[][] };
 
 const HINT = /retry with the range (\d+)-(\d+)/;
-const TOO_BIG = /exceeds max results|size limit|response body exceeded|too large|limited to a 10,000 range|ranges over/i;
+const TOO_BIG = /exceeds max results|size limit|response body exceeded|too large|limited to a 10,000 range|ranges over|timed? ?out|took too long|deadline/i;
+export const WINDOW_DEADLINE_MS = 45_000;
+
+/** Reject if `p` does not settle within `ms` (a hung request must split, never stall ingestion). */
+function deadline<T>(p: Promise<T>, ms: number): Promise<T> {
+  let t: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([
+    p,
+    new Promise<never>((_, reject) => {
+      t = setTimeout(() => reject(new Error(`eth_getLogs deadline: timed out after ${ms} ms`)), ms);
+    }),
+  ]).finally(() => clearTimeout(t));
+}
 
 /** Full text of an error and its cause chain (viem wraps provider messages), with URLs redacted: provider URLs
  *  carry API keys and must never reach logs (I11). */
@@ -24,10 +36,10 @@ export function errorText(e: unknown): string {
 export async function getLogsAdaptive(client: PublicClient, filter: LogFilter, from: bigint, to: bigint,
   attempt = 0): Promise<RpcLog[]> {
   try {
-    return (await client.request({
+    return (await deadline(client.request({
       method: "eth_getLogs",
       params: [{ ...filter, fromBlock: `0x${from.toString(16)}`, toBlock: `0x${to.toString(16)}` }] as never,
-    })) as unknown as RpcLog[];
+    }, { retryCount: 1 }), WINDOW_DEADLINE_MS)) as unknown as RpcLog[];
   } catch (e) {
     const msg = errorText(e);
     if (TOO_BIG.test(msg) && to > from) {
