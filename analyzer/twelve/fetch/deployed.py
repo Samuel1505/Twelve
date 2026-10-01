@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import subprocess
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -98,8 +99,15 @@ class Resolved:
     block: int
 
 
-def scan_address(address: str, *, chain: str, rpc_url: str, api_key: str, block: int | None = None) -> ScanResult:
+def _noop(_: str) -> None:
+    return None
+
+
+def scan_address(address: str, *, chain: str, rpc_url: str, api_key: str, block: int | None = None,
+                 progress: Callable[[str], None] = _noop) -> ScanResult:
+    """Stages reported through `progress` follow ARCHITECTURE §3 (RESOLVING … ANALYZING)."""
     t0 = time.monotonic()
+    progress("RESOLVING")
     chain_id = CHAINS[chain]
     rpc = Rpc(rpc_url)
     got = rpc.chain_id()
@@ -110,14 +118,20 @@ def scan_address(address: str, *, chain: str, rpc_url: str, api_key: str, block:
     code_addr = target.implementation or address
     onchain = target.impl_code or target.code
 
+    progress("FETCHING")
     sc = smart_contract(chain_id, code_addr, api_key)
+    progress("REBUILDING")
     rb = rebuild(sc)
+    progress("COMPILING")
     solc = ensure_solc(rb.compiler)
     output = run_solc(rb.standard_json, solc)
     artifact = output["contracts"][rb.file][rb.name]
+    progress("MATCHING")
     m = match_runtime(artifact["evm"]["deployedBytecode"], onchain)  # raises MatchFailed: never attested (I5)
 
+    progress("BINDING")
     deployed = deployed_values(output, rb.file, rb.name, m, rpc, address, block)
+    progress("ANALYZING")
     compiled = build_ir(rb.standard_json, solc)
     engine = analyze(compiled.slither, compiled.sources, {}, deployed, (rb.file, rb.name))
 

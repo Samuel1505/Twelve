@@ -6,6 +6,7 @@ import argparse
 import json
 import os
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -31,7 +32,33 @@ def _load_dotenv() -> None:
             return
 
 
-def _scan_address(address: str, chain: str, block: int | None) -> ScanResult:
+def error_code(e: BaseException) -> str:
+    """Terminal scan errors of ARCHITECTURE §3, so callers (apps/api) never parse messages."""
+    name = type(e).__name__
+    return {
+        "NotAContract": "NOT_A_CONTRACT",
+        "UnsupportedTarget": "UNSUPPORTED",
+        "Unsupported": "UNSUPPORTED",
+        "NotVerified": "NOT_VERIFIED",
+        "MatchFailed": "MATCH_FAILED",
+        "CompileError": "COMPILE_FAILED",
+        "ChainMismatch": "CHAIN_MISMATCH",
+        "HttpError": "FETCH_FAILED",
+        "RpcError": "FETCH_FAILED",
+        "OSError": "CONFIG",
+    }.get(name, "ANALYZER_ERROR")
+
+
+def _progress(enabled: bool) -> Callable[[str], None]:
+    def emit(stage: str) -> None:
+        if enabled:
+            print(json.dumps({"stage": stage}), file=sys.stderr, flush=True)
+
+    return emit
+
+
+def _scan_address(address: str, chain: str, block: int | None,
+                  progress: Callable[[str], None] | None = None) -> ScanResult:
     from twelve.fetch.deployed import (
         scan_address,
     )
@@ -42,7 +69,8 @@ def _scan_address(address: str, chain: str, block: int | None) -> ScanResult:
     missing = [n for n, v in ((rpc_var, rpc), ("BLOCKSCOUT_API_KEY", key)) if not v]
     if missing:
         raise OSError(f"missing env: {', '.join(missing)}")
-    return scan_address(address, chain=chain, rpc_url=str(rpc), api_key=str(key), block=block)
+    return scan_address(address, chain=chain, rpc_url=str(rpc), api_key=str(key), block=block,
+                        progress=progress or (lambda _: None))
 
 
 def _print_human(res: ScanResult) -> None:
@@ -62,7 +90,7 @@ def _cmd_scan(args: argparse.Namespace) -> int:
 
     try:
         if args.address:
-            res = _scan_address(args.address, args.chain, args.block)
+            res = _scan_address(args.address, args.chain, args.block, _progress(args.progress))
         elif args.path:
             res = scan_path(Path(args.path), config_path=Path(args.config) if args.config else None,
                             solc=Path(args.solc) if args.solc else None)
@@ -70,6 +98,8 @@ def _cmd_scan(args: argparse.Namespace) -> int:
             print("twelve: error: give a path or --address", file=sys.stderr)
             return 3
     except Exception as e:  # noqa: BLE001 - CLI boundary: every pipeline error is exit 3, named by class
+        if args.json:
+            print(json.dumps({"error": {"code": error_code(e), "type": type(e).__name__, "message": str(e)[:500]}}))
         print(f"twelve: error: {type(e).__name__}: {e}", file=sys.stderr)
         return 3
     if args.json:
@@ -119,6 +149,7 @@ def main(argv: list[str] | None = None) -> None:
     s.add_argument("--config")
     s.add_argument("--solc", help="path to an exact solc build (default: svm/solc-select 0.8.30)")
     s.add_argument("--fail-on", choices=list(SEVERITY_ORDER))
+    s.add_argument("--progress", action="store_true", help="emit {\"stage\": …} JSON lines on stderr")
     s.set_defaults(func=_cmd_scan)
     v = sub.add_parser("verify", help="recompute a deployed-mode report and compare its reportHash")
     v.add_argument("--report", required=True, help="JSON from `twelve scan --address … --json`")
