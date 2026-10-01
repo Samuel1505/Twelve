@@ -1,39 +1,9 @@
-import { readdirSync, readFileSync } from "node:fs";
-import pg from "pg";
 import { z } from "zod";
 import type { Hex } from "viem";
+import { connect, migrate, toBytes, toHex, type Db } from "@twelve/db";
 
-export type Db = pg.Pool;
+export { connect, migrate, toBytes, toHex, type Db };
 
-export const connect = (url: string): Db => new pg.Pool({ connectionString: url, max: 10 });
-
-/** Plain numbered SQL files in apps/api/migrations, applied once each in order (CLAUDE.md §8). */
-export async function migrate(db: Db, dir = new URL("../migrations/", import.meta.url)): Promise<string[]> {
-  await db.query("CREATE TABLE IF NOT EXISTS schema_migrations (name text PRIMARY KEY, applied_at timestamptz DEFAULT now())");
-  const done = new Set((await db.query<{ name: string }>("SELECT name FROM schema_migrations")).rows.map((r) => r.name));
-  const files = readdirSync(dir).filter((f) => /^\d+_.+\.sql$/.test(f)).sort();
-  const applied: string[] = [];
-  for (const f of files) {
-    if (done.has(f)) continue;
-    const client = await db.connect();
-    try {
-      await client.query("BEGIN");
-      await client.query(readFileSync(new URL(f, dir), "utf8"));
-      await client.query("INSERT INTO schema_migrations (name) VALUES ($1)", [f]);
-      await client.query("COMMIT");
-      applied.push(f);
-    } catch (e) {
-      await client.query("ROLLBACK");
-      throw e;
-    } finally {
-      client.release();
-    }
-  }
-  return applied;
-}
-
-export const toBytes = (h: Hex | string): Buffer => Buffer.from(h.slice(2), "hex");
-export const toHex = (b: Buffer): Hex => `0x${b.toString("hex")}`;
 const hexCol = z.instanceof(Buffer).transform(toHex);
 const hexColNull = hexCol.nullable();
 

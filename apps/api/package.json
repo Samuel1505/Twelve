@@ -9,6 +9,7 @@
     "dev": "tsx --env-file-if-exists=../../.env src/index.ts"
   },
   "dependencies": {
+    "@twelve/db": "workspace:*",
     "@twelve/shared": "workspace:*",
     "fastify": "5.12.5",
     "pg": "8.23.1",
