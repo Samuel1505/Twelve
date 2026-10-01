@@ -19,3 +19,7 @@ test = "test-arc"
 [rpc_endpoints]
 arc = "${ARC_RPC_URL}"
 arc_testnet = "${ARC_TESTNET_RPC_URL}"
+
+[lint]
+# corpus imports resolve via include_paths at compile time; the linter does not follow them
+ignore = ["script/DeployCorpusDeployed.s.sol"]
