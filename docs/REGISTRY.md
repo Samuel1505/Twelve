@@ -75,7 +75,7 @@ interface ITwelveRegistry {
 1. `target.code.length > 0` else `TargetHasNoCode`.
 2. `target.codehash == expectedCodehash` else `CodehashMismatch`.
 3. `verdict ∈ {CLEAN, FINDINGS, INCOMPLETE}` else `InvalidVerdict`.
-4. If `implementation != 0`: `implementation.codehash == implCodehash` else `CodehashMismatch`.
+4. If `implementation != 0`: `implementation.codehash == implCodehash` else `CodehashMismatch`. If `implementation == 0`, `implCodehash` must be 0 (else `CodehashMismatch(0, implCodehash)`) — a non-proxy record never carries an implementation hash (added in Phase 3).
 5. Overwrite record (re-attestation replaces), `revoked = false`, emit `Attested`.
 
 ### 4.2 `status` logic
@@ -93,7 +93,7 @@ return Status(a.verdict)
 A contract cannot read another contract's storage, so `status` **cannot** see that a proxy now points at a different implementation. It only sees that the *recorded* implementation's code is unchanged. Closing this gap is the monitor's job: it watches `Upgraded(address)` from every attested proxy and calls `revoke(target, "UPGRADED")` in the same few seconds (MONITOR.md §7). Consumers who need a trustless answer for proxies should treat `implementation != 0` as "trust the attester's liveness" — the UI says exactly that.
 
 ### 4.4 Gas
-Arc gas is paid in USDC at 18-dec native precision. `attest` is one cold-slot write set (~3 slots) — measure with `forge snapshot` and record the USDC cost per attest at current base fee in this doc after Phase 3.
+Arc gas is paid in USDC at 18-dec native precision. `attest` writes 5 slots for a new record. Measured on Arc testnet (Phase 3): **124,116 gas × 32.5 gwei = 0.00403377 USDC per attestation** (txs in `docs/evidence/phase3-testnet-e2e.md`); local snapshot in `contracts/.gas-snapshot`. Re-measure on mainnet at deploy.
 
 ## 5. Consumer pattern (what `TwelveGate` demonstrates)
 
