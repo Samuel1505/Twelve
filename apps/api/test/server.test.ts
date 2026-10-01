@@ -74,3 +74,24 @@ test("healthz reports db and chain head", async () => {
   assert.equal(h.db, true);
   assert.ok(h.chains["5042002"].head);
 });
+
+test("alerts: list with filters/cursor, subscriptions return a one-time secret", async () => {
+  await db.query(`INSERT INTO alerts (chain_id, detector, severity, address, tx, block, evidence, dedupe_key) VALUES
+    (5042002, 'D1', 'HIGH', $1, $2, 10, '{"k":1}', 'a1'), (5042002, 'D2', 'MEDIUM', $1, $2, 11, '{}', 'a2')`,
+    [Buffer.from(chain.registry.slice(2).toLowerCase(), "hex"), Buffer.alloc(32, 1)]);
+  const all = (await app().inject({ method: "GET", url: "/v1/alerts?chainId=5042002" })).json();
+  assert.equal(all.alerts.length, 2);
+  assert.equal(all.alerts[0].detector, "D2");
+  const high = (await app().inject({ method: "GET", url: `/v1/alerts?severity=HIGH&address=${chain.registry}` })).json();
+  assert.deepEqual(high.alerts.map((a: { detector: string }) => a.detector), ["D1"]);
+  const page2 = (await app().inject({ method: "GET", url: `/v1/alerts?limit=1&cursor=${all.alerts[0].id}` })).json();
+  assert.equal(page2.alerts[0].detector, "D1");
+  const status = (await app().inject({ method: "GET", url: `/v1/status/${chain.registry}?chainId=5042002` })).json();
+  assert.equal(status.alerts.length, 2);
+  const sub = await app().inject({ method: "POST", url: "/v1/subscriptions",
+    payload: { address: chain.registry, webhookUrl: "https://example.org/hook" } });
+  assert.equal(sub.statusCode, 201);
+  assert.match(sub.json().secret, /^[0-9a-f]{64}$/);
+  assert.equal((await app().inject({ method: "POST", url: "/v1/subscriptions",
+    payload: { address: chain.registry, webhookUrl: "http://evil.example" } })).statusCode, 400);
+});

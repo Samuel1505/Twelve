@@ -1,5 +1,6 @@
 // HTTP API (docs/ARCHITECTURE.md §2.2). zod at every boundary; wallet-free; read-only except scan submission and
 // the admin revoke.
+import { randomBytes } from "node:crypto";
 import Fastify, { type FastifyInstance } from "fastify";
 import { getAddress, isAddress, type Address, type Hex, type PublicClient } from "viem";
 import { z } from "zod";
@@ -47,6 +48,29 @@ function rateLimiter(perMin: number) {
     buckets.set(ip, b);
     return true;
   };
+}
+
+type AlertQuery = { chainId?: number; address?: Address; severity?: string; before?: bigint; id?: bigint; limit: number };
+
+async function alertsFor(db: Db, q: AlertQuery): Promise<Record<string, unknown>[]> {
+  const where: string[] = [];
+  const args: unknown[] = [];
+  const add = (sql: string, v: unknown) => {
+    args.push(v);
+    where.push(sql.replace("?", `$${args.length}`));
+  };
+  if (q.id !== undefined) add("id = ?", q.id.toString());
+  if (q.chainId !== undefined) add("chain_id = ?", q.chainId);
+  if (q.address) add("address = ?", Buffer.from(q.address.slice(2).toLowerCase(), "hex"));
+  if (q.severity) add("severity = ?", q.severity);
+  if (q.before !== undefined) add("id < ?", q.before.toString());
+  args.push(q.limit);
+  const r = await db.query(
+    `SELECT id::text, chain_id, detector, severity, '0x' || encode(address, 'hex') AS address,
+            '0x' || encode(tx, 'hex') AS tx, block::text, evidence, created_at
+     FROM alerts ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY id DESC LIMIT $${args.length}`, args);
+  return r.rows.map((x) => ({ id: x.id, chainId: x.chain_id, detector: x.detector, severity: x.severity,
+    address: x.address ? getAddress(x.address) : null, tx: x.tx, block: x.block, evidence: x.evidence, createdAt: x.created_at }));
 }
 
 export function buildServer(d: ServerDeps): FastifyInstance {
@@ -154,8 +178,55 @@ export function buildServer(d: ServerDeps): FastifyInstance {
       chainId, address, onchain,
       report: latest ? { reportHash: latest.report_hash, verdict: latest.verdict, toolVersion: latest.tool_version,
         scannedAt: latest.created_at, core: JSON.parse(latest.core_jcs) } : null,
-      alerts: [], // monitor output arrives in Phase 4
+      alerts: await alertsFor(d.db, { chainId, address, limit: 20 }),
     };
+  });
+
+  app.get<{ Querystring: { chainId?: string; address?: string; severity?: string; cursor?: string; limit?: string } }>(
+    "/v1/alerts", async (req, reply) => {
+      const q = req.query;
+      if (q.address && !isAddress(q.address)) return reply.code(400).send({ error: "not an address" });
+      if (q.severity && !["HIGH", "MEDIUM", "LOW", "INFO", "OPS"].includes(q.severity)) return reply.code(400).send({ error: "bad severity" });
+      const rows = await alertsFor(d.db, {
+        ...(q.chainId ? { chainId: Number(q.chainId) } : {}),
+        ...(q.address ? { address: getAddress(q.address) } : {}),
+        ...(q.severity ? { severity: q.severity } : {}),
+        ...(q.cursor ? { before: BigInt(q.cursor) } : {}),
+        limit: Math.min(200, Number(q.limit ?? 50)),
+      });
+      return { alerts: rows, nextCursor: rows.length ? rows[rows.length - 1]!.id : null };
+    });
+
+  // live ticker (MONITOR §6): the monitor NOTIFYs twelve_alerts with each new alert id
+  app.get("/v1/alerts/stream", async (req, reply) => {
+    reply.hijack();
+    const res = reply.raw;
+    res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
+    const client = await d.db.connect();
+    const onNote = async (n: { channel: string; payload?: string | undefined }) => {
+      if (n.channel !== "twelve_alerts" || !n.payload) return;
+      const [a] = await alertsFor(d.db, { id: BigInt(n.payload), limit: 1 });
+      if (a) res.write(`data: ${JSON.stringify(a)}\n\n`);
+    };
+    client.on("notification", (n) => void onNote(n));
+    await client.query("LISTEN twelve_alerts");
+    const ping = setInterval(() => res.write(": ping\n\n"), 15_000);
+    req.raw.on("close", () => {
+      clearInterval(ping);
+      void client.query("UNLISTEN twelve_alerts").finally(() => client.release());
+    });
+  });
+
+  app.post("/v1/subscriptions", async (req, reply) => {
+    const b = z.object({ address: z.string().refine((s) => isAddress(s)), webhookUrl: z.string().url().refine(
+      (u) => u.startsWith("https://") || u.startsWith("http://localhost"), "webhook must be https") }).safeParse(req.body);
+    if (!b.success) return reply.code(400).send({ error: b.error.issues.map((i) => i.message).join("; ") });
+    const secret = randomBytes(32).toString("hex");
+    const r = await d.db.query<{ id: string }>(
+      "INSERT INTO subscriptions (address, webhook_url, secret) VALUES ($1, $2, $3) RETURNING id",
+      [Buffer.from(getAddress(b.data.address).slice(2).toLowerCase(), "hex"), b.data.webhookUrl, secret]);
+    // the secret is shown once: deliveries carry X-Twelve-Signature = hex(hmac_sha256(secret, body))
+    return reply.code(201).send({ id: r.rows[0]?.id, secret });
   });
 
   app.post("/v1/admin/revoke", async (req, reply) => {

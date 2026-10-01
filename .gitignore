@@ -18,3 +18,6 @@ contracts/cache/
 contracts/broadcast/*/31337/
 # phase0 raw dumps (evidence we keep is committed under docs/evidence)
 scripts/phase0/out/
+
+# monitor replay output and resumable state (large; summaries go to docs)
+apps/monitor/.replay/

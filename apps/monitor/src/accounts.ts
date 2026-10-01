@@ -38,13 +38,17 @@ export class Accounts {
     const found: [Address, Account][] = [];
     for (let i = 0; i < unknown.length; i += 25) { // 25 concurrent getCode requests per round
       const chunk = unknown.slice(i, i + 25);
-      const codes = await Promise.all(chunk.map((address) => this.client.getCode({ address }).catch((e: unknown) => {
-        this.lastError = String((e as { shortMessage?: string; message?: string }).shortMessage ?? e).slice(0, 160);
-        return undefined;
-      })));
+      // viem's getCode returns `undefined` for an address WITHOUT code, so failure needs its own sentinel
+      const FAILED = Symbol("failed");
+      const codes = await Promise.all(chunk.map((address) => this.client.getCode({ address })
+        .then((c) => c ?? "0x")
+        .catch((e: unknown): typeof FAILED => {
+          this.lastError = String((e as { shortMessage?: string; message?: string }).shortMessage ?? e).slice(0, 160);
+          return FAILED;
+        })));
       chunk.forEach((a, j) => {
         const code = codes[j];
-        if (code === undefined) return; // transient failure: retry next batch, never guess
+        if (code === undefined || code === FAILED) return; // transient failure: retried by resolve(), never guessed
         const delegated = code.startsWith(DELEGATION_PREFIX) && code.length === 2 + 46;
         const acc = { isContract: code !== "0x" && code.length > 2, delegated };
         this.map.set(a, acc);

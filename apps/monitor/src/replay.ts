@@ -112,11 +112,14 @@ async function main(): Promise<void> {
     next = w.to + 1n;
     windows++;
     if (windows % 20 === 0 || next > to) {
+      const save = windows % 200 === 0 || next > to;
       const done = Number(next - a.from) / Number(to - a.from + 1n);
       console.error(`block ${w.to}/${to} (${(done * 100).toFixed(1)}%) logs=${nLogs} movements=${nMov} ` +
         `profiles=${state.profiles.size} alerts=${JSON.stringify(counts)} ${((Date.now() - t0) / 1000).toFixed(0)}s`);
-      writeFileSync(statePath, ser({ next: next.toString(), to: to.toString(), profiles: [...state.profiles],
-        alerts, counts, logs: nLogs, movements: nMov, startedAt: t0 } satisfies Saved));
+      if (save) {
+        writeFileSync(statePath, ser({ next: next.toString(), to: to.toString(), profiles: [...state.profiles],
+          alerts, counts, logs: nLogs, movements: nMov, startedAt: t0 } satisfies Saved));
+      }
     }
   }
 
