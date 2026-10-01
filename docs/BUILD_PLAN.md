@@ -67,9 +67,9 @@ Goal: replace every `VERIFY:` that blocks later phases with a recorded fact.
 ## Deployed
 | Contract | Network | Address | Tx | Verified |
 |---|---|---|---|---|
-| TwelveRegistry | testnet 5042002 | `0x6670030e9df18e3a454ea77d69d00fd8d17728a1` | `0x487c850fea36e72bb6a4e0a5977c3c3a0c18fdd7628822fabbb2269c3f2ede33` | pending (explorer rate limit) |
+| TwelveRegistry | testnet 5042002 | `0x6670030e9df18e3a454ea77d69d00fd8d17728a1` | `0x487c850fea36e72bb6a4e0a5977c3c3a0c18fdd7628822fabbb2269c3f2ede33` | yes |
 | TwelveRegistry | mainnet 5042 | | | |
-| TwelveGate | testnet 5042002 | `0x7a63d663861f84cd0f6f66de29945620c1cc95b7` | `0x33ecf98c6730e067df458942f638ba3e4121f9f7b3af1e77bd5a07f68e526b41` | pending (explorer rate limit) |
+| TwelveGate | testnet 5042002 | `0x7a63d663861f84cd0f6f66de29945620c1cc95b7` | `0x33ecf98c6730e067df458942f638ba3e4121f9f7b3af1e77bd5a07f68e526b41` | yes |
 | TwelveGate | mainnet | | | |
 | LeakyRefund | mainnet | | | |
 | FixedRefund | mainnet | | | |
