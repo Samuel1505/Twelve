@@ -17,11 +17,18 @@ Streams (each has its own checkpoint row):
 | `registry` | `address = REGISTRY_ADDRESS` | Attested / Revoked (keeps DB in sync with chain) |
 | `upgrades` | topic0 = `Upgraded(address)`, `address ∈ attestedProxies` | auto-revoke |
 
+Implementation (Phase 4): the four streams are fetched with **one** `eth_getLogs` per window (address list
+`[0xff…fe, 0x3600, registry, …watched proxies]`, topic0 ∈ {Transfer, Attested, Revoked, Upgraded, BeaconUpgraded}) under a
+single checkpoint per chain; every log is classified by **emitter and topic together**, so a watched proxy that is
+itself a token can never be read as a USDC movement (`src/decode.ts`). Windows adapt to provider caps (Infura: 10,000
+blocks and 20,000 results, with a "retry with the range" hint; dRPC free: 101 blocks). Whether ingestion began at
+genesis (`complete_history`) is stored with the checkpoint, never re-derived on restart.
+
 Mechanics:
 - **Backfill**: `eth_getLogs` in fixed windows (`WINDOW` = provider max, discovered in Phase 0; start 2,000 blocks), from genesis — mainnet is young, full history is cheap and gives complete baselines. Parallelism ≤ 4 windows, results applied **in block order**.
-- **Head**: WS `newHeads` subscription; on each head fetch logs for `[checkpoint+1, head]`. WS disconnect → fall back to polling every 1 s until reconnected.
+- **Head**: WS `newHeads` subscription; on each head fetch logs for `[checkpoint+1, head]`. WS disconnect → fall back to polling every 1 s until reconnected. *Phase 4: no WS endpoint is configured (`ARC_WS_URL` unset), so the monitor polls every 250 ms; headers and logs for a window are fetched in one parallel round trip. Measured on testnet: D1 alert 0.05–1.23 s after the block timestamp; D4 revoke tx +3–4 s after the upgrade block (`docs/evidence/phase4-testnet-exits.md`).*
 - **Idempotency**: upsert on `(block, log_index)`. Replay any range safely.
-- **Continuity (I9)**: store `block_hash` with checkpoint; for each new block verify `parentHash == stored hash`. Mismatch ⇒ halt stream, page ops. No automatic recovery.
+- **Continuity (I9)**: store `block_hash` with checkpoint; for each new block verify `parentHash == stored hash`. Mismatch ⇒ halt stream, page ops. No automatic recovery. *Implemented at every window boundary (head-following windows are 1–2 blocks, so effectively every block); a CONTINUITY OPS alert is written and the process exits non-zero.*
 - **Lag SLO**: head lag < 3 s p95. Alert detection latency target: < 2 s after block.
 
 ## 2. Pairing → movements
@@ -64,6 +71,7 @@ Outflows from `C` in one tx ≥ 90% of `C`'s pre-tx `balance_18`, where `max_out
 
 ### D4 ATTESTED_PROXY_UPGRADED (ops + auto-action)
 `Upgraded(newImpl)` from a proxy with a live Twelve attestation ⇒ call attester `revoke(proxy, "UPGRADED")`, enqueue a rescan, emit INFO alert. Target: revoke tx included within 5 s of the upgrade block.
+The rescan must not reuse a cached report for the proxy: its codehash is unchanged by an upgrade. The API reuses a proxy report only if the proxy still points at the recorded implementation with the same codehash (Phase 4 bug: the first D4 run re-attested the old implementation).
 
 ### D5 ATTESTED_TARGET_FINDING_ACTIVITY (INFO)
 A contract whose attestation verdict is FINDINGS receives inflows ⇒ INFO to subscribers ("funds are flowing into a contract with open HIGH findings"). Rate-limited to once per contract per 24 h.
