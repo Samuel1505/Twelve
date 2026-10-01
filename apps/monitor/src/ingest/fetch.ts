@@ -42,7 +42,7 @@ export async function getLogsAdaptive(client: PublicClient, filter: LogFilter, f
     }, { retryCount: 1 }), WINDOW_DEADLINE_MS)) as unknown as RpcLog[];
   } catch (e) {
     const msg = errorText(e);
-    if (TOO_BIG.test(msg) && to > from) {
+    if (TOO_BIG.test(msg) && !/too many requests|429/i.test(msg) && to > from) {
       const hint = HINT.exec(msg);
       let mid = (from + to) / 2n;
       if (hint) {
@@ -53,8 +53,11 @@ export async function getLogsAdaptive(client: PublicClient, filter: LogFilter, f
       const right = await getLogsAdaptive(client, filter, mid + 1n, to);
       return [...left, ...right];
     }
-    if (attempt < 5) {
-      await new Promise((r) => setTimeout(r, 400 * 2 ** attempt + Math.random() * 200));
+    // rate limiting is not a size problem: back off much longer and try more often (Infura 429 in dense ranges)
+    const limited = /too many requests|429|rate limit/i.test(msg);
+    if (attempt < (limited ? 12 : 5)) {
+      const base = limited ? 2_000 : 400;
+      await new Promise((r) => setTimeout(r, Math.min(60_000, base * 2 ** attempt) + Math.random() * 500));
       return getLogsAdaptive(client, filter, from, to, attempt + 1);
     }
     throw new Error(`eth_getLogs [${from}, ${to}] failed: ${msg.slice(0, 400)}`);

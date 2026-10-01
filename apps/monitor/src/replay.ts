@@ -85,6 +85,7 @@ async function main(): Promise<void> {
     }
   };
   let windows = 0;
+  let savedAt = Date.now();
   // watchdog: a replay that makes no progress for 5 minutes exits (resumable from the state file) instead of idling
   let progressAt = Date.now();
   const watchdog = setInterval(() => {
@@ -124,11 +125,12 @@ async function main(): Promise<void> {
     windows++;
     progressAt = Date.now();
     if (windows % 20 === 0 || next > to) {
-      const save = windows % 200 === 0 || next > to;
+      const save = Date.now() - savedAt > 120_000 || next > to;
       const done = Number(next - a.from) / Number(to - a.from + 1n);
       console.error(`block ${w.to}/${to} (${(done * 100).toFixed(1)}%) logs=${nLogs} movements=${nMov} ` +
         `profiles=${state.profiles.size} alerts=${JSON.stringify(counts)} ${((Date.now() - t0) / 1000).toFixed(0)}s`);
       if (save) {
+        savedAt = Date.now();
         writeFileSync(statePath, ser({ next: next.toString(), to: to.toString(), profiles: [...state.profiles],
           alerts, counts, logs: nLogs, movements: nMov, startedAt: t0 } satisfies Saved));
       }
