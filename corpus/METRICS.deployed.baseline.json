@@ -1,0 +1,19 @@
+{
+  "highRecall": [
+    3,
+    3
+  ],
+  "highSafeFp": 0,
+  "rules": {
+    "TW-003": {
+      "matched": 1,
+      "expected": 1,
+      "safeFp": 0
+    },
+    "TW-004": {
+      "matched": 2,
+      "expected": 2,
+      "safeFp": 0
+    }
+  }
+}
