@@ -1,0 +1,50 @@
+# Fly.io: one image, two process groups (docs/ARCHITECTURE.md §5). Deploy from the repo root:
+#   fly deploy -c infra/fly.toml --build-arg TWELVE_GIT_COMMIT=$(git rev-parse HEAD)
+# Secrets (fly secrets set …), never in this file (I11): DATABASE_URL, ARC_RPC_URL, ARC_TESTNET_RPC_URL,
+# BLOCKSCOUT_API_KEY, ATTESTER_PRIVATE_KEY (api only — see note), ADMIN_TOKEN, PRIVATE_TARGETS.
+# Note (I12): Fly secrets are app-wide, so the monitor process can read ATTESTER_PRIVATE_KEY's env var even though it
+# never loads it (apps/monitor/src/config.ts has no such field). DEPLOYER_PRIVATE_KEY is never set here.
+app = "twelve-arc"
+primary_region = "iad"
+
+[build]
+  # VERIFY: (owner: Phase 5 deploy) whether fly resolves this relative to the repo root or to infra/ when run with -c
+  dockerfile = "infra/Dockerfile"
+
+[env]
+  API_PORT = "8787"
+  ANALYZER_CWD = "/app"
+  MONITOR_CHAIN_ID = "5042"
+  REGISTRY_ADDRESS = "0x6670030e9df18e3A454eA77d69D00Fd8d17728A1"
+  ATTESTER_ADDRESS = "0xe98540d28F45830E01D237251Bfc4777E69c9A46"
+  API_URL = "http://api.process.twelve-arc.internal:8787"   # monitor → api revoke calls over Fly's private network
+  WEB_ORIGIN = "https://twelve.example"   # set to the web app's origin
+  DISCLOSED_ADDRESSES = "0xA6c15eDC8ceffb558A54ead5bd9d833A589276bC,0x5A76D4AB409CA2114808eDD38cB9A8343a34b7Fb,0x42957B36F5623912dED1a0A16bba3dad22E571C9,0x6670030e9df18e3A454eA77d69D00Fd8d17728A1,0x7a63d663861f84cd0F6F66DE29945620C1Cc95b7,0x3DBE97Cf796e313Be59B61E836488203Cb5CBe07,0x63Dbb10EA994AAc43D1E94d5429B4f28DfFC8BDa"
+
+[processes]
+  api = "pnpm --filter @twelve/api start"
+  monitor = "pnpm --filter @twelve/monitor start"
+
+[http_service]
+  internal_port = 8787
+  force_https = true
+  auto_stop_machines = "off"   # the scan worker and attester live in this process
+  min_machines_running = 1
+  processes = ["api"]
+
+  [[http_service.checks]]
+    method = "GET"
+    path = "/healthz"
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "20s"
+
+[[vm]]
+  processes = ["api"]
+  memory = "2gb"   # slither + solc per scan
+  cpus = 2
+
+[[vm]]
+  processes = ["monitor"]
+  memory = "1gb"
+  cpus = 1
