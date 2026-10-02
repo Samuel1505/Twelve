@@ -48,8 +48,10 @@ const transfer = (block: bigint, tx: number, li: number, emitter: string, from: 
 function fakeClient(logs: RpcLog[], head: bigint, code: Record<string, string | undefined> = {}, brokenParentAt?: bigint): PublicClient {
   return {
     getBlockNumber: async () => head,
-    getBlock: async ({ blockNumber }: { blockNumber: bigint }) => ({ hash: h32(blockNumber + 1000n),
-      parentHash: blockNumber === brokenParentAt ? h32(1) : h32(blockNumber + 999n) }),
+    getBlock: async ({ blockNumber, blockTag }: { blockNumber?: bigint; blockTag?: string }) => {
+      const n = blockTag === "latest" ? head : blockNumber!;
+      return { number: n, hash: h32(n + 1000n), parentHash: n === brokenParentAt ? h32(1) : h32(n + 999n) };
+    },
     getCode: async ({ address }: { address: string }) => code[address],
     request: async ({ params }: { params: [{ fromBlock: Hex; toBlock: Hex; address: string[] }] }) => {
       const [f] = params;
@@ -148,4 +150,11 @@ test("D3/BALANCE stay off for profiles without complete history", async () => {
   await step(d, { block: 59n, hash: h32(1059n) });
   const a = await db.query("SELECT count(*)::int AS n FROM alerts WHERE detector = 'BALANCE' AND block = 60");
   assert.equal(a.rows[0].n, 0);
+});
+
+test("head fast path: exactly one new block uses the latest header for continuity", async () => {
+  const client = fakeClient([], 71n, {}, 71n); // broken parent at the single new block
+  await assert.rejects(step(deps(client), { block: 70n, hash: h32(1070n) }), ContinuityError);
+  const ok = await step(deps(fakeClient([], 81n)), { block: 80n, hash: h32(1080n) });
+  assert.equal(ok.cp.block, 81n);
 });

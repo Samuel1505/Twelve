@@ -19,7 +19,8 @@ RESP=$(curl -s -m 60 -X POST "$API?module=contract&action=verifysourcecode&apike
   --data-urlencode "codeformat=solidity-standard-json-input" --data-urlencode "contractname=$ID" \
   --data-urlencode "compilerversion=$LONG" --data-urlencode "constructorArguements=${ARGS#0x}")
 rm -f "$TMP"
-GUID=$(echo "$RESP" | python3 -c "import json,sys;d=json.load(sys.stdin);print(d['result'] if d.get('status')=='1' else '')")
+# node, not the system python3: Apple's python3 shim can be blocked by an unaccepted Xcode license
+GUID=$(printf '%s' "$RESP" | node -e 'let s="";process.stdin.on("data",c=>s+=c).on("end",()=>{try{const d=JSON.parse(s);console.log(d.status==="1"?d.result:"")}catch{console.log("")}})')
 [ -z "$GUID" ] && { echo "$ADDR submit failed: $RESP"; exit 1; }
 for i in $(seq 1 30); do
   R=$(curl -s -m 30 "$API?module=contract&action=checkverifystatus&guid=$GUID&apikey=$KEY")
