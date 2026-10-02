@@ -127,6 +127,10 @@ def _cmd_verify(args: argparse.Namespace) -> int:
     print(f"{'MATCH' if ok else 'MISMATCH'} recomputed {res.report_hash} claimed {claimed}")
     if not ok and res.core["tool"] != core["tool"]:
         print(f"note: tool differs: {res.core['tool']} vs {core['tool']}")
+        commit = core["tool"].get("gitCommit")
+        if commit and commit != res.core["tool"].get("gitCommit"):
+            # same tool ⇒ same hash (I4): reproduce with the analyzer that produced the report
+            print(f"to reproduce: git checkout {commit} && uv run twelve verify --report {args.report}")
     return 0 if ok else 1
 
 
