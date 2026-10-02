@@ -26,9 +26,18 @@ export const DETECTORS: Record<string, string> = {
 
 const Flow = z.object({ iface: z.string(), raw: z.string(), usdc: z.string() });
 
+export type Flow = z.infer<typeof Flow>;
+
+/** Third-party alert published without address/tx/amounts until disclosure resolves (ADR-022). */
+export const isWithheld = (a: AlertRow) => a.evidence.withheld === true;
+
 /** One human sentence per alert, from its evidence (MONITOR §4). */
-export function summarize(a: AlertRow): { inflow?: z.infer<typeof Flow>; outflow?: z.infer<typeof Flow>; text?: string } {
+export function summarize(a: AlertRow): { inflow?: Flow; outflow?: Flow; text?: string } {
   const e = a.evidence;
+  if (isWithheld(a)) {
+    const what = e.kind === "underpay" ? "paid out a trillionth of the amount" : e.kind === "overpay" ? "paid out a trillion times the amount" : "matched the 10¹² signature";
+    return { text: `A third-party contract ${what}. Details withheld until its owner has been told.` };
+  }
   const inflow = Flow.safeParse(e.inflow);
   const outflow = Flow.safeParse(e.outflow);
   if (a.detector === "D1" && inflow.success && outflow.success) return { inflow: inflow.data, outflow: outflow.data };

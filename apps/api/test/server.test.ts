@@ -148,3 +148,16 @@ test("public alert feed names only disclosed addresses; admin sees everything (A
     headers: { authorization: `Bearer ${"t".repeat(20)}` } })).json().alerts as Record<string, unknown>[];
   assert.ok(admin.every((x) => x.address !== null));
 });
+
+test("SSE streams keep CORS headers for the web origin", async () => {
+  const a = buildServer({
+    db, bus: new ScanBus(), queue: { enqueue: async () => undefined }, clients: { 5042002: chain.pub }, registry: null,
+    attester: null, adminToken: null, scanRatePerMin: 5, webOrigins: ["http://localhost:3000"],
+  });
+  const ok = await a.inject({ method: "POST", url: "/v1/scans", payload: { chainId: 5042002, address: chain.registry } });
+  const id = ok.json().scanId as string;
+  await db.query("UPDATE scans SET state = 'NOT_A_CONTRACT' WHERE id = $1", [id]);
+  const r = await a.inject({ method: "GET", url: `/v1/scans/${id}/events`, headers: { origin: "http://localhost:3000" } });
+  assert.equal(r.headers["access-control-allow-origin"], "http://localhost:3000");
+  assert.match(String(r.headers["content-type"]), /event-stream/);
+});

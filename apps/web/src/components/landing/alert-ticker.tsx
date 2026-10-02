@@ -2,9 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { z } from "zod";
-import { Hash } from "@/components/ui/address";
-import { Pill, UnitChip } from "@/components/ui/unit-chip";
-import { AlertRow, DETECTORS, ago, summarize } from "@/lib/alerts";
+import { AlertItem } from "@/components/alerts/alert-item";
+import { AlertRow } from "@/lib/alerts";
 import { API_URL, MAINNET } from "@/lib/config";
 import { cn } from "@/lib/cn";
 
@@ -12,7 +11,7 @@ type State = "loading" | "live" | "offline";
 const MAX = 6;
 
 /** Latest mainnet alerts, then live over SSE (/v1/alerts/stream). Every state renders a sentence, never a broken box. */
-export function AlertTicker({ compact = false }: { compact?: boolean }) {
+export function AlertTicker() {
   const [rows, setRows] = useState<AlertRow[]>([]);
   const [state, setState] = useState<State>("loading");
   const [now, setNow] = useState(() => Date.now());
@@ -82,34 +81,11 @@ export function AlertTicker({ compact = false }: { compact?: boolean }) {
       )}
 
       <ul className="divide-y divide-line">
-        {rows.map((a) => {
-          const s = summarize(a);
-          return (
-            <li key={a.id} className="ticker-row grid gap-x-4 gap-y-1.5 px-5 py-3.5 sm:grid-cols-[auto_1fr_auto] sm:items-center">
-              <div className="flex items-center gap-2.5">
-                <Pill tone={(["HIGH", "MEDIUM", "LOW", "INFO"].includes(a.severity) ? a.severity : "INFO") as "HIGH"} />
-                <span className="text-[13px] text-fg">{DETECTORS[a.detector] ?? a.detector}</span>
-              </div>
-              <div className={cn("flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-muted", compact && "hidden sm:flex")}>
-                {a.address && <Hash value={a.address} className="text-muted" />}
-                {s.inflow && s.outflow && (
-                  <span className="num flex flex-wrap items-center gap-1.5 text-[12px]">
-                    <span className="text-subtle">in</span> {s.inflow.usdc}
-                    <UnitChip exp={s.inflow.iface === "erc20" ? 6 : 18} label={s.inflow.iface === "erc20" ? "erc20" : "native"} />
-                    <span className="text-subtle">→ out</span> <span className="text-bad">{s.outflow.usdc}</span>
-                    <UnitChip exp={s.outflow.iface === "erc20" ? 6 : 18} label={s.outflow.iface === "erc20" ? "erc20" : "native"} />
-                  </span>
-                )}
-                {!s.inflow && s.outflow && <span className="num text-[12px]">out {s.outflow.usdc} USDC</span>}
-                {s.text && <span className="text-[12px]">{s.text}</span>}
-              </div>
-              <div className="flex items-center gap-3 text-[12px] text-subtle sm:justify-end">
-                {a.tx && <Hash value={a.tx} kind="tx" className="text-[12px] text-subtle" />}
-                <span className="num">{ago(a.createdAt, now)}</span>
-              </div>
-            </li>
-          );
-        })}
+        {rows.map((a) => (
+          <li key={a.id} className="ticker-row px-5 py-3.5">
+            <AlertItem a={a} now={now} />
+          </li>
+        ))}
       </ul>
     </div>
   );

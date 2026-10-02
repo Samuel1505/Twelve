@@ -19,7 +19,11 @@ const sev = {
   FINDINGS: "bg-bad-soft text-bad",
   CLEAN: "bg-ok-soft text-ok",
   INCOMPLETE: "bg-v18-soft text-v18",
+  STALE: "bg-v18-soft text-v18",
+  REVOKED: "bg-elev-2 text-muted",
+  NONE: "bg-elev-2 text-muted",
 } as const;
+export type PillTone = keyof typeof sev;
 
 export function Pill({ tone, children, className }: { tone: keyof typeof sev; children?: React.ReactNode; className?: string }) {
   return (

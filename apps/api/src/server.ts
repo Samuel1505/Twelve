@@ -98,6 +98,10 @@ export function publicAlert(a: Record<string, unknown>, disclosed: ReadonlySet<s
   };
 }
 
+/** hijacked SSE replies bypass fastify's header pipeline: carry over what @fastify/cors set in onRequest */
+const sseCors = (h: Record<string, unknown>): Record<string, string> =>
+  Object.fromEntries(Object.entries(h).filter(([k]) => k.startsWith("access-control-") || k === "vary").map(([k, v]) => [k, String(v)]));
+
 export function buildServer(d: ServerDeps): FastifyInstance {
   const app = Fastify({ logger: false });
   // read-only data for the web app; scans are rate-limited per IP regardless of origin
@@ -152,7 +156,7 @@ export function buildServer(d: ServerDeps): FastifyInstance {
     if (!scan) return reply.code(404).send({ error: "not found" });
     reply.hijack();
     const res = reply.raw;
-    res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
+    res.writeHead(200, { ...sseCors(reply.getHeaders()), "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
     const send = (data: unknown) => res.write(`data: ${JSON.stringify(data)}\n\n`);
     for (const e of await scanEvents(d.db, scan.id)) send({ scanId: scan.id, state: e.stage, error: e.error });
     if (TERMINAL.has(scan.state)) return res.end();
@@ -246,7 +250,7 @@ export function buildServer(d: ServerDeps): FastifyInstance {
   app.get("/v1/alerts/stream", async (req, reply) => {
     reply.hijack();
     const res = reply.raw;
-    res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
+    res.writeHead(200, { ...sseCors(reply.getHeaders()), "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
     const client = await d.db.connect();
     const onNote = async (n: { channel: string; payload?: string | undefined }) => {
       if (n.channel !== "twelve_alerts" || !n.payload) return;
