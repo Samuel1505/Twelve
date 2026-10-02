@@ -1,6 +1,7 @@
 // HTTP API (docs/ARCHITECTURE.md §2.2). zod at every boundary; wallet-free; read-only except scan submission and
 // the admin revoke.
 import { randomBytes } from "node:crypto";
+import cors from "@fastify/cors";
 import Fastify, { type FastifyInstance } from "fastify";
 import { getAddress, isAddress, type Address, type Hex, type PublicClient } from "viem";
 import { z } from "zod";
@@ -23,6 +24,7 @@ export type ServerDeps = {
   attester: Attester | null;
   adminToken: string | null;
   scanRatePerMin: number;
+  webOrigins?: string[]; // browser origins allowed to call the API (apps/web)
 };
 
 const STATUS = ["NONE", "CLEAN", "FINDINGS", "INCOMPLETE", "STALE", "REVOKED"] as const;
@@ -75,6 +77,8 @@ async function alertsFor(db: Db, q: AlertQuery): Promise<Record<string, unknown>
 
 export function buildServer(d: ServerDeps): FastifyInstance {
   const app = Fastify({ logger: false });
+  // read-only data for the web app; scans are rate-limited per IP regardless of origin
+  void app.register(cors, { origin: d.webOrigins ?? ["http://localhost:3000"], methods: ["GET", "POST"] });
   const allow = rateLimiter(d.scanRatePerMin);
 
   app.get("/healthz", async () => {

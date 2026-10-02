@@ -1,0 +1,168 @@
+@import "tailwindcss";
+
+/*
+ * Twelve design tokens.
+ * Color carries meaning only (DEMO_SCRIPT §2): blue = ERC-20 view (6 decimals), amber = native view (18 decimals),
+ * red = a collision between them, green = clean. Everything else is neutral.
+ */
+:root {
+  --bg: #0a0a0b;
+  --bg-elev: #111113;
+  --bg-elev-2: #17171a;
+  --bg-sunken: #070708;
+  --line: rgb(255 255 255 / 0.07);
+  --line-strong: rgb(255 255 255 / 0.13);
+  --fg: #ededef;
+  --fg-muted: #a1a1aa;
+  --fg-subtle: #6e6e78;
+
+  --v6: #6aa6ff;
+  --v6-soft: rgb(106 166 255 / 0.12);
+  --v18: #f2b544;
+  --v18-soft: rgb(242 181 68 / 0.12);
+  --bad: #ff6b5f;
+  --bad-soft: rgb(255 107 95 / 0.12);
+  --ok: #45d48f;
+  --ok-soft: rgb(69 212 143 / 0.12);
+
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #fbfbfa;
+    --bg-elev: #ffffff;
+    --bg-elev-2: #f4f4f2;
+    --bg-sunken: #f1f1ef;
+    --line: rgb(0 0 0 / 0.07);
+    --line-strong: rgb(0 0 0 / 0.13);
+    --fg: #111113;
+    --fg-muted: #57575f;
+    --fg-subtle: #8a8a93;
+
+    --v6: #1f6fe0;
+    --v6-soft: rgb(31 111 224 / 0.09);
+    --v18: #b57605;
+    --v18-soft: rgb(181 118 5 / 0.1);
+    --bad: #d4362a;
+    --bad-soft: rgb(212 54 42 / 0.08);
+    --ok: #138a52;
+    --ok-soft: rgb(19 138 82 / 0.09);
+
+    color-scheme: light;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-elev: var(--bg-elev);
+  --color-elev-2: var(--bg-elev-2);
+  --color-sunken: var(--bg-sunken);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-fg: var(--fg);
+  --color-muted: var(--fg-muted);
+  --color-subtle: var(--fg-subtle);
+  --color-v6: var(--v6);
+  --color-v6-soft: var(--v6-soft);
+  --color-v18: var(--v18);
+  --color-v18-soft: var(--v18-soft);
+  --color-bad: var(--bad);
+  --color-bad-soft: var(--bad-soft);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", Menlo, monospace;
+
+  --ease-out: var(--ease-out);
+  --ease-in-out: var(--ease-in-out);
+}
+
+html {
+  background: var(--bg);
+  color: var(--fg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-feature-settings: "ss01", "cv11";
+}
+
+::selection {
+  background: var(--v6-soft);
+  color: var(--fg);
+}
+
+/* Raw integers are the story: always tabular, never ligated. */
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums slashed-zero;
+  font-feature-settings: "tnum", "zero";
+}
+
+/* Focus: visible for keyboard users only, never a glow. */
+:focus-visible {
+  outline: 2px solid var(--v6);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Pressable elements confirm the press (Emil: 0.97, 160ms ease-out). */
+.pressable {
+  transition:
+    transform 160ms var(--ease-out),
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease;
+}
+.pressable:active {
+  transform: scale(0.97);
+}
+
+/* One-time explanatory reveal for the hero ledger: the twelve digits that separate the two views. */
+@keyframes digit-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.digit-reveal {
+  animation: digit-in 360ms var(--ease-out) both;
+}
+
+/* New ticker rows enter from above; transitions stay interruptible. */
+.ticker-row {
+  transition:
+    opacity 300ms var(--ease-out),
+    transform 300ms var(--ease-out);
+  @starting-style {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .digit-reveal {
+    animation: none;
+  }
+  .ticker-row {
+    transition: opacity 200ms ease;
+    @starting-style {
+      transform: none;
+    }
+  }
+  .pressable:active {
+    transform: none;
+  }
+}

@@ -9,6 +9,7 @@
     "dev": "tsx --env-file-if-exists=../../.env src/index.ts"
   },
   "dependencies": {
+    "@fastify/cors": "11.3.0",
     "@twelve/db": "workspace:*",
     "@twelve/shared": "workspace:*",
     "fastify": "5.12.5",

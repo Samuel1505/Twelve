@@ -1,0 +1,91 @@
+{
+  "meta": {
+    "durationMs": 96,
+    "scannedAt": 1790959973
+  },
+  "reportCore": {
+    "bindings": [
+      {
+        "method": "constant",
+        "mutable": false,
+        "value": "0x3600000000000000000000000000000000000000",
+        "var": "LeakyRefund.USDC"
+      }
+    ],
+    "coverage": {
+      "functionsAnalyzed": 2,
+      "unsupported": []
+    },
+    "findings": [
+      {
+        "confidence": "INFERRED",
+        "contract": "LeakyRefund",
+        "fix": "Convert with Usdc.toNative(...) before sending natively, or pay through the ERC-20 interface.",
+        "function": "buy(uint256)",
+        "id": "0xd09c448065d84b894b56988ade7be76d8a5bcb7f23f0797ab8669f90ab24bf6a",
+        "left": {
+          "expr": "paid6 (inferred from USDC.transferFrom(msg.sender, address(this), paid6))",
+          "unit": [
+            1,
+            6
+          ]
+        },
+        "location": {
+          "endCol": 68,
+          "endLine": 35,
+          "file": "LeakyRefund.sol",
+          "startCol": 26,
+          "startLine": 35
+        },
+        "message": "USDC ERC-20 amount (6 decimals) is sent natively (18 decimals): pays 10^-12 of the intended amount (dust).",
+        "rule": "TW-003",
+        "severity": "HIGH",
+        "trace": [
+          {
+            "expr": "paid6 (inferred from USDC.transferFrom(msg.sender, address(this), paid6))",
+            "loc": "LeakyRefund.sol:33",
+            "step": "source",
+            "unit": [
+              1,
+              6
+            ]
+          },
+          {
+            "expects": [
+              1,
+              18
+            ],
+            "expr": "payable(msg.sender).call{value: paid6}(\"\")",
+            "loc": "LeakyRefund.sol:35",
+            "step": "sink"
+          }
+        ]
+      }
+    ],
+    "input": {
+      "compiler": "0.8.30+commit.73712a01",
+      "evmVersion": "osaka",
+      "optimizer": {
+        "enabled": false,
+        "runs": 200
+      },
+      "standardJsonHash": "0x99a166ed69189dfe8ffbe4c1466fde314dec0b8fabb75d744758cb90c30d549e"
+    },
+    "schemaVersion": 1,
+    "target": {
+      "files": [
+        "LeakyRefund.sol"
+      ],
+      "kind": "source"
+    },
+    "tool": {
+      "gitCommit": "f735ee24857a99097fd264662f9129da849c2078",
+      "name": "twelve",
+      "rulesHash": "0x13c17f4f71514687081ec2196019672baace8bbf84d0fcbfb23eee49ab2107bb",
+      "slither": "0.11.6",
+      "version": "0.1.0"
+    },
+    "verdict": "FINDINGS"
+  },
+  "reportHash": "0x1d3bf33936ff9e428501587763584dbddf792ae9fa489d62daefaf2b24c12446"
+}

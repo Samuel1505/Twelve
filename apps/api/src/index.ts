@@ -44,6 +44,7 @@ async function main(): Promise<void> {
   const app = buildServer({
     db, bus, clients, attester, registry: env.REGISTRY_ADDRESS ?? null, adminToken: env.ADMIN_TOKEN ?? null,
     scanRatePerMin: env.SCAN_RATE_PER_MIN,
+    webOrigins: env.WEB_ORIGIN,
     queue: { enqueue: async (scanId) => void (await boss.send(QUEUE, { scanId }, { retryLimit: 2, retryBackoff: true })) },
   });
   await app.listen({ port: env.API_PORT, host: "0.0.0.0" });

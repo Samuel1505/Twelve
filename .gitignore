@@ -21,3 +21,8 @@ scripts/phase0/out/
 
 # monitor replay output and resumable state (large; summaries go to docs)
 apps/monitor/.replay/
+
+# next.js
+.next/
+next-env.d.ts
+*.tsbuildinfo
