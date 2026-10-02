@@ -26,3 +26,10 @@ test("persistent RPC failure is an error, never a guess", async () => {
   await assert.rejects(acc.resolve([A(4)]), /could not resolve code/);
   assert.equal(acc.map.has(A(4)), false);
 });
+
+test("rate-limit detection never matches digits inside block numbers", async () => {
+  const { RATE_LIMITED } = await import("../src/ingest/fetch.js");
+  assert.equal(RATE_LIMITED.test("query exceeds max results 20000, retry with the range 21063240-21063429"), false);
+  assert.equal(RATE_LIMITED.test("HTTP request failed. | Too Many Requests"), true);
+  assert.equal(RATE_LIMITED.test("Status: 429"), true);
+});

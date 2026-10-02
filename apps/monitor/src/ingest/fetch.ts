@@ -8,6 +8,9 @@ export type LogFilter = { address: string[]; topics: string[][] };
 const HINT = /retry with the range (\d+)-(\d+)/;
 const TOO_BIG = /exceeds max results|size limit|response body exceeded|too large|limited to a 10,000 range|ranges over|timed? ?out|took too long|deadline/i;
 export const WINDOW_DEADLINE_MS = 45_000;
+// Match the HTTP status or the provider's phrase, never a bare "429": block numbers in Infura's own "retry with the range
+// 21063240-21063429" hint contain those digits (that misclassification stalled the mainnet replay at block 21.06M).
+export const RATE_LIMITED = /too many requests|status:?\s*429\b|HTTP 429\b|rate.?limit/i;
 
 /** Reject if `p` does not settle within `ms` (a hung request must split, never stall ingestion). */
 function deadline<T>(p: Promise<T>, ms: number): Promise<T> {
@@ -42,7 +45,8 @@ export async function getLogsAdaptive(client: PublicClient, filter: LogFilter, f
     }, { retryCount: 1 }), WINDOW_DEADLINE_MS)) as unknown as RpcLog[];
   } catch (e) {
     const msg = errorText(e);
-    if (TOO_BIG.test(msg) && !/too many requests|429/i.test(msg) && to > from) {
+    const limited = RATE_LIMITED.test(msg);
+    if (TOO_BIG.test(msg) && !limited && to > from) {
       const hint = HINT.exec(msg);
       let mid = (from + to) / 2n;
       if (hint) {
@@ -54,7 +58,6 @@ export async function getLogsAdaptive(client: PublicClient, filter: LogFilter, f
       return [...left, ...right];
     }
     // rate limiting is not a size problem: back off much longer and try more often (Infura 429 in dense ranges)
-    const limited = /too many requests|429|rate limit/i.test(msg);
     if (attempt < (limited ? 12 : 5)) {
       const base = limited ? 2_000 : 400;
       await new Promise((r) => setTimeout(r, Math.min(60_000, base * 2 ** attempt) + Math.random() * 500));
