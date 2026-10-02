@@ -15,7 +15,7 @@ import { ScanProgress } from "./scan-progress";
 
 const TERMINAL = new Set([
   "DONE", "NOT_A_CONTRACT", "UNSUPPORTED", "NOT_VERIFIED", "MATCH_FAILED", "COMPILE_FAILED", "ANALYZER_ERROR",
-  "ATTEST_FAILED", "CHAIN_MISMATCH", "FETCH_FAILED", "CONFIG",
+  "ATTEST_FAILED", "CHAIN_MISMATCH", "FETCH_FAILED", "CONFIG", "WITHHELD",
 ]);
 
 type Scan = { id: string; state: string; startedAt: number; error?: ScanEvent["error"]; attestTx?: string };
@@ -67,7 +67,7 @@ export function ContractView({ address, initial }: { address: string; initial: A
   // a stranger pasting an address expects a result, not a button: scan when nothing is known yet
   const auto = useRef(false);
   useEffect(() => {
-    if (!auto.current && initial.ok && !initial.value.report) {
+    if (!auto.current && initial.ok && !initial.value.report && !initial.value.withheld) {
       auto.current = true;
       void start();
     }
@@ -81,7 +81,8 @@ export function ContractView({ address, initial }: { address: string; initial: A
 
   const running = scan !== null && !TERMINAL.has(scan.state);
   const outcome = scan && TERMINAL.has(scan.state) && scan.state !== "DONE"
-    ? outcomeFor(scan.state, scan.error?.code, scan.error?.message) : null;
+    ? outcomeFor(scan.state, scan.error?.code, scan.error?.message)
+    : !scan && status?.withheld ? outcomeFor("WITHHELD") : null;
   const report = status?.report ?? null;
   const core = report?.core;
   const target = core && core.target.kind !== "source" ? core.target : null;

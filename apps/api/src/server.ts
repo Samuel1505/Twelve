@@ -29,6 +29,7 @@ export type ServerDeps = {
   webOrigins?: string[]; // browser origins allowed to call the API (apps/web)
   sources?: SourceFetcher; // verified source for finding excerpts; absent ⇒ /v1/source answers 503
   disclosed?: ReadonlySet<string>; // lowercase addresses whose alerts the public feed may name (ADR-022)
+  privateTargets?: ReadonlySet<string>; // lowercase; reports and alerts withheld from public endpoints (§7.4)
 };
 
 const STATUS = ["NONE", "CLEAN", "FINDINGS", "INCOMPLETE", "STALE", "REVOKED"] as const;
@@ -104,6 +105,9 @@ const sseCors = (h: Record<string, unknown>): Record<string, string> =>
 
 export function buildServer(d: ServerDeps): FastifyInstance {
   const app = Fastify({ logger: false });
+  const isAdmin = (h: string | undefined) => !!d.adminToken && h === `Bearer ${d.adminToken}`;
+  const hidden = (address: string | null | undefined, auth: string | undefined) =>
+    !!address && !!d.privateTargets?.has(address.toLowerCase()) && !isAdmin(auth);
   // read-only data for the web app; scans are rate-limited per IP regardless of origin
   void app.register(cors, { origin: d.webOrigins ?? ["http://localhost:3000"], methods: ["GET", "POST"] });
   const allow = rateLimiter(d.scanRatePerMin);
@@ -142,10 +146,11 @@ export function buildServer(d: ServerDeps): FastifyInstance {
     const scan = await getScan(d.db, req.params.id);
     if (!scan) return reply.code(404).send({ error: "not found" });
     const events = await scanEvents(d.db, scan.id);
-    const report = scan.report_hash ? await getReport(d.db, scan.report_hash) : null;
+    const priv = hidden(scan.address, req.headers.authorization);
+    const report = scan.report_hash && !priv ? await getReport(d.db, scan.report_hash) : null;
     return {
       id: scan.id, chainId: scan.chain_id, address: getAddress(scan.address), codehash: scan.codehash,
-      state: scan.state, terminal: TERMINAL.has(scan.state), error: scan.error, reportHash: scan.report_hash,
+      state: scan.state, terminal: TERMINAL.has(scan.state), error: scan.error, reportHash: priv ? null : scan.report_hash,
       attestTx: scan.attest_tx, events, report: report ? JSON.parse(report.core_jcs) : null,
     };
   });
@@ -174,7 +179,7 @@ export function buildServer(d: ServerDeps): FastifyInstance {
   app.get<{ Params: { hash: string } }>("/v1/reports/:hash", async (req, reply) => {
     if (!hash32.safeParse(req.params.hash).success) return reply.code(400).send({ error: "bad hash" });
     const r = await getReport(d.db, req.params.hash.toLowerCase() as Hex);
-    if (!r) return reply.code(404).send({ error: "not found" });
+    if (!r || hidden(r.address, req.headers.authorization)) return reply.code(404).send({ error: "not found" });
     // content-addressed ⇒ immutable: the body is the exact canonical bytes that hash to the key
     reply.header("cache-control", "public, max-age=31536000, immutable").type("application/json");
     return reply.send(`{"reportHash":"${r.report_hash}","reportCore":${r.core_jcs},"meta":${JSON.stringify(r.meta)}}`);
@@ -205,12 +210,14 @@ export function buildServer(d: ServerDeps): FastifyInstance {
         onchain = { error: redact(String(e)).slice(0, 200) };
       }
     }
-    const latest = await latestReportFor(d.db, chainId, address);
+    const priv = hidden(address, req.headers.authorization);
+    const latest = priv ? null : await latestReportFor(d.db, chainId, address);
+    const alerts = await alertsFor(d.db, { chainId, address, limit: 20 });
     return {
-      chainId, address, onchain,
+      chainId, address, onchain, ...(priv ? { withheld: true } : {}),
       report: latest ? { reportHash: latest.report_hash, verdict: latest.verdict, toolVersion: latest.tool_version,
         scannedAt: latest.created_at, core: JSON.parse(latest.core_jcs) } : null,
-      alerts: await alertsFor(d.db, { chainId, address, limit: 20 }),
+      alerts: priv ? alerts.map((a) => publicAlert(a, new Set())) : alerts,
     };
   });
 
@@ -241,7 +248,7 @@ export function buildServer(d: ServerDeps): FastifyInstance {
         ...(q.cursor ? { before: BigInt(q.cursor) } : {}),
         limit: Math.min(200, Number(q.limit ?? 50)),
       });
-      const full = !!d.adminToken && req.headers.authorization === `Bearer ${d.adminToken}`;
+      const full = isAdmin(req.headers.authorization);
       const disclosed = d.disclosed ?? new Set<string>();
       return { alerts: full ? rows : rows.map((a) => publicAlert(a, disclosed)),
         nextCursor: rows.length ? rows[rows.length - 1]!.id : null };

@@ -85,6 +85,9 @@ For a TP in a third-party contract:
 2. Contact the deployer (verified-source metadata, project site, security.txt, X/GitHub). Also Arc security contact if the owner is unreachable.
 3. Wait for fix or a reasonable window; only then reference it publicly, with permission if possible.
 4. Never attest `FINDINGS` publicly for an undisclosed TP during the window — keep the scan private (`private: true` in DB, excluded from registry writes).
+   Implemented as `PRIVATE_TARGETS` (api env): scans of these addresses end in `WITHHELD` — the report is stored, never
+   attested, its hash is not published over SSE, and `/v1/status`, `/v1/scans/:id`, `/v1/reports/:hash` withhold it
+   (and the address's alerts) unless called with the admin token. The web says the results aren't public yet.
 Log each disclosure in `sweep/disclosures.md` (no addresses until public).
 
 ## 8. CI (GitHub Actions)

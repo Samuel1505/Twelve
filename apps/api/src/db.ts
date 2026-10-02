@@ -30,6 +30,7 @@ export const ScanEventRow = z.object({
 
 export const ReportRow = z.object({
   report_hash: hexCol,
+  address: hexColNull, // null for source-mode reports
   verdict: z.string(),
   tool_version: z.string(),
   core_jcs: z.string(),
@@ -88,7 +89,7 @@ export async function setState(
 
 export const TERMINAL = new Set([
   "DONE", "NOT_A_CONTRACT", "UNSUPPORTED", "NOT_VERIFIED", "MATCH_FAILED", "COMPILE_FAILED", "ANALYZER_ERROR",
-  "ATTEST_FAILED", "CHAIN_MISMATCH", "FETCH_FAILED", "CONFIG",
+  "ATTEST_FAILED", "CHAIN_MISMATCH", "FETCH_FAILED", "CONFIG", "WITHHELD",
 ]);
 
 export async function findReport(
@@ -118,7 +119,7 @@ export async function insertReport(
 
 export async function getReport(db: Db, hash: Hex): Promise<z.infer<typeof ReportRow> | null> {
   const r = await db.query(
-    "SELECT report_hash, verdict, tool_version, core_jcs, meta, created_at FROM reports WHERE report_hash = $1",
+    "SELECT report_hash, address, verdict, tool_version, core_jcs, meta, created_at FROM reports WHERE report_hash = $1",
     [toBytes(hash)],
   );
   return r.rows[0] ? ReportRow.parse(r.rows[0]) : null;
@@ -126,7 +127,7 @@ export async function getReport(db: Db, hash: Hex): Promise<z.infer<typeof Repor
 
 export async function latestReportFor(db: Db, chainId: number, address: Hex): Promise<z.infer<typeof ReportRow> | null> {
   const r = await db.query(
-    `SELECT report_hash, verdict, tool_version, core_jcs, meta, created_at FROM reports
+    `SELECT report_hash, address, verdict, tool_version, core_jcs, meta, created_at FROM reports
      WHERE chain_id = $1 AND address = $2 ORDER BY created_at DESC LIMIT 1`,
     [chainId, toBytes(address.toLowerCase())],
   );

@@ -165,3 +165,22 @@ test("proxy dedupe: a cached report is NOT reused after the implementation chang
     args: [d.attester!.address, proxy] });
   assert.equal(rec.implementation.toLowerCase(), v2.toLowerCase());
 });
+
+test("private target (CORPUS_AND_TESTING §7.4): scanned and stored, never attested, hash never published", async () => {
+  const target = await chain.deploy(initCodeFor(21));
+  const an = fakeAnalyzer(() => "FINDINGS");
+  const id = await newScan(target);
+  const bus = new ScanBus();
+  const seen: unknown[] = [];
+  bus.subscribe(id, (e) => seen.push(e));
+  const d = { ...deps(an), bus, privateTargets: new Set([target.toLowerCase()]) };
+  await processScan(d, id);
+  const scan = (await getScan(db, id))!;
+  assert.equal(scan.state, "WITHHELD");
+  assert.ok(scan.report_hash);
+  assert.equal(scan.attest_tx, null);
+  assert.ok(!JSON.stringify(seen).includes(scan.report_hash!.slice(2)));
+  const status = await chain.pub.readContract({ address: chain.registry, abi: twelveRegistryAbi, functionName: "status",
+    args: [d.attester!.address, target] });
+  assert.equal(status, 0);
+});

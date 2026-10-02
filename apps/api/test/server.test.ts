@@ -161,3 +161,22 @@ test("SSE streams keep CORS headers for the web origin", async () => {
   assert.equal(r.headers["access-control-allow-origin"], "http://localhost:3000");
   assert.match(String(r.headers["content-type"]), /event-stream/);
 });
+
+test("private targets: status, scan and report endpoints withhold the report unless admin", async () => {
+  const addr = "0x00000000000000000000000000000000000000cc";
+  const core = { schemaVersion: 1, verdict: "FINDINGS", n: 1 };
+  const coreJcs = canonicalJson(core);
+  const hash = keccak256(toHex(coreJcs));
+  await insertReport(db, { hash, schemaVersion: 1, toolVersion: "t", chainId: 5042002, address: addr as `0x${string}`,
+    codehash: `0x${"00".repeat(32)}`, verdict: "FINDINGS", coreJcs, meta: {} });
+  const a = buildServer({
+    db, bus: new ScanBus(), queue: { enqueue: async () => undefined }, clients: { 5042002: chain.pub }, registry: null,
+    attester: null, adminToken: "t".repeat(20), scanRatePerMin: 5, privateTargets: new Set([addr]),
+  });
+  const admin = { authorization: `Bearer ${"t".repeat(20)}` };
+  assert.equal((await a.inject({ method: "GET", url: `/v1/reports/${hash}` })).statusCode, 404);
+  assert.equal((await a.inject({ method: "GET", url: `/v1/reports/${hash}`, headers: admin })).statusCode, 200);
+  const st = (await a.inject({ method: "GET", url: `/v1/status/${addr}?chainId=5042002` })).json();
+  assert.equal(st.report, null);
+  assert.equal(st.withheld, true);
+});

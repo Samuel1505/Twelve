@@ -19,18 +19,23 @@ export type ScanDeps = {
   analyzer: Analyzer;
   attester: Attester | null; // null: attestation disabled (no key configured) → scans end at DONE unattested
   clients: Partial<Record<ChainId, PublicClient>>;
+  /** CORPUS_AND_TESTING §7.4: undisclosed true positives are scanned for us but never attested or published. */
+  privateTargets?: ReadonlySet<string>;
 };
 
-async function transition(d: ScanDeps, id: string, state: string, patch: Parameters<typeof setState>[3] = {}) {
+async function transition(d: ScanDeps, id: string, state: string, patch: Parameters<typeof setState>[3] = {}, hidden = false) {
   if (patch.error !== undefined) patch = { ...patch, error: redactDeep(patch.error) }; // served publicly: no RPC keys
   await setState(d.db, id, state, patch);
   d.bus.publish({
     scanId: id, state,
     ...(patch.error !== undefined ? { error: patch.error } : {}),
-    ...(patch.reportHash ? { reportHash: patch.reportHash } : {}),
+    // a private target's hash would unlock /v1/reports/:hash; it stays in the DB only
+    ...(patch.reportHash && !hidden ? { reportHash: patch.reportHash } : {}),
     ...(patch.attestTx ? { attestTx: patch.attestTx } : {}),
   });
 }
+
+export const isPrivate = (set: ReadonlySet<string> | undefined, address: string) => !!set?.has(address.toLowerCase());
 
 const counts = (core: ReportCore) => ({
   high: core.findings.filter((f) => f.severity === "HIGH").length,
@@ -131,7 +136,12 @@ export async function processScan(d: ScanDeps, scanId: string): Promise<void> {
       verdict: core.verdict, coreJcs, meta: res.value.meta,
     });
   }
-  await transition(d, scanId, "HASHING", { codehash, reportHash: hash });
+  const hidden = isPrivate(d.privateTargets, address);
+  await transition(d, scanId, "HASHING", { codehash, reportHash: hash }, hidden);
+  if (hidden) {
+    await transition(d, scanId, "WITHHELD", { reportHash: hash, error: { code: "WITHHELD", message: "results for this address are not public" } }, true);
+    return;
+  }
 
   if (!d.attester) {
     await transition(d, scanId, "DONE", { reportHash: hash });

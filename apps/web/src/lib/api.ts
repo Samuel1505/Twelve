@@ -36,6 +36,7 @@ export const Status = z.object({
     core: ReportCore,
   }).nullable(),
   alerts: z.array(AlertRow),
+  withheld: z.boolean().optional(), // private target (CORPUS_AND_TESTING §7.4)
 });
 export type Status = z.infer<typeof Status>;
 

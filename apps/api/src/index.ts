@@ -40,7 +40,7 @@ async function main(): Promise<void> {
   await boss.createQueue(QUEUE);
   // one scan at a time: the analyzer is CPU-bound and the attester is a single writer anyway
   await boss.work<{ scanId: string }>(QUEUE, { batchSize: 1 }, async (jobs) => {
-    for (const job of jobs) await processScan({ db, bus, analyzer, attester, clients }, job.data.scanId);
+    for (const job of jobs) await processScan({ db, bus, analyzer, attester, clients, privateTargets: env.PRIVATE_TARGETS }, job.data.scanId);
   });
 
   const app = buildServer({
@@ -49,6 +49,7 @@ async function main(): Promise<void> {
     webOrigins: env.WEB_ORIGIN,
     sources: blockscoutSources(env.BLOCKSCOUT_API_KEY),
     disclosed: env.DISCLOSED_ADDRESSES,
+    privateTargets: env.PRIVATE_TARGETS,
     queue: { enqueue: async (scanId) => void (await boss.send(QUEUE, { scanId }, { retryLimit: 2, retryBackoff: true })) },
   });
   await app.listen({ port: env.API_PORT, host: "0.0.0.0" });

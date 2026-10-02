@@ -20,6 +20,7 @@ export const Env = z.object({
   ANALYZER_CWD: z.string().default("../.."),
   SCAN_RATE_PER_MIN: z.coerce.number().int().default(10),
   DISCLOSED_ADDRESSES: z.string().default("").transform((s) => new Set(s.split(",").map((x) => x.trim().toLowerCase()).filter(Boolean))),
+  PRIVATE_TARGETS: z.string().default("").transform((s) => new Set(s.split(",").map((x) => x.trim().toLowerCase()).filter(Boolean))),
   WEB_ORIGIN: z.string().default("http://localhost:3000").transform((s) => s.split(",").map((x) => x.trim())),
 });
 export type Env = z.infer<typeof Env>;

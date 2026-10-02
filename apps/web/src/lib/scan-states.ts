@@ -39,6 +39,8 @@ export function outcomeFor(state: string, code?: string, message?: string): Outc
     case "CONFIG":
     case "CHAIN_MISMATCH":
       return { title: "This server can't scan mainnet right now", body: "Twelve's scanner isn't connected to Arc mainnet at the moment. Nothing about this contract is implied by that.", tone: "warn" };
+    case "WITHHELD":
+      return { title: "Results for this contract aren't public right now", body: "Twelve has scanned this contract, but its results are being shared privately for the moment. They'll appear here later. The verified source is on the explorer if you'd like to review it yourself.", tone: "neutral" };
     case "ATTEST_FAILED":
       return { title: "Report ready, attestation pending", body: "The analysis finished, but writing the result on-chain failed. The report below is final; the attestation can be retried.", tone: "warn", retry: true };
     default:
