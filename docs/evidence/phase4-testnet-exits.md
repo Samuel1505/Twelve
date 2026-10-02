@@ -31,3 +31,18 @@ not change, and re-attested the old implementation after the revoke — a false 
 `apps/api/src/scans.ts` now reuses a cached proxy report only if the proxy still points at the recorded implementation
 with the same codehash (`currentImplementation`, regression test "proxy dedupe" in `apps/api/test/scans.test.ts`). The
 stale record was corrected by a fresh scan (attest tx `0x8da57835…16f0`, implementation v2) before the second upgrade.
+
+## D1 on mainnet (5042) — exit criterion
+LeakyRefund `0xA6c15eDC8ceffb558A54ead5bd9d833A589276bC` (verified, deploy approved by the owner 2026-10-02), monitor
+following mainnet head through Infura (measured RTT ~700 ms per call from the dev machine).
+
+| Buy tx | Block | Paid | D1 alert after block timestamp | Monitor step |
+|---|---|---|---|---|
+| `0x220ad5fe7576865e38d93dc1791db8f661a91763c62607235cdef54d25241333` | 23,852,011 | 0.05 USDC | 1.65 – 2.65 s (three sequential round trips incl. first-sight getCode) | 2,540 ms |
+| `0x6ef99d2387156f1bf811cc8bb6dbf7a922a97f68fcc1896959ac44448fc193c3` | 23,852,182 | 0.01 USDC | ≤ 0.94 s (head fast path) | 510 ms |
+| `0xf2f769ddb589a7ef6f214498043f55abbb5f0f3056c4a5e91f30927279b9ec92` | 23,852,228 | 0.01 USDC | ≤ 0.81 s (head fast path) | 532 ms |
+
+Evidence (first buy): `{"kind":"underpay","inflow":{"iface":"erc20","usdc":"0.05"},"outflow":{"iface":"native","usdc":"0.00000000000005"},"ratio":"10^-12"}`.
+The fast path (one `eth_getBlockByNumber(latest)` gives head number and continuity header) was added after the first
+buy. A never-seen contract still costs one extra round trip for `getCode`; deployed close to the provider (ARCHITECTURE
+§5) that is tens of milliseconds, from this machine ~700 ms.
