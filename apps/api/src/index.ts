@@ -48,6 +48,7 @@ async function main(): Promise<void> {
     scanRatePerMin: env.SCAN_RATE_PER_MIN,
     webOrigins: env.WEB_ORIGIN,
     sources: blockscoutSources(env.BLOCKSCOUT_API_KEY),
+    disclosed: env.DISCLOSED_ADDRESSES,
     queue: { enqueue: async (scanId) => void (await boss.send(QUEUE, { scanId }, { retryLimit: 2, retryBackoff: true })) },
   });
   await app.listen({ port: env.API_PORT, host: "0.0.0.0" });

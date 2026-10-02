@@ -121,3 +121,30 @@ test("redact keeps scheme and host, drops path keys and query keys", async () =>
   assert.ok(!s.includes("abc123def") && !s.includes("sekrit"));
   assert.match(s, /https:\/\/arc-mainnet\.infura\.io\/…/);
 });
+
+test("public alert feed names only disclosed addresses; admin sees everything (ADR-022)", async () => {
+  const mine = "0x00000000000000000000000000000000000000aa";
+  const theirs = "0x00000000000000000000000000000000000000bb";
+  for (const [i, a] of [mine, theirs].entries()) {
+    await db.query(`INSERT INTO alerts (chain_id, detector, severity, address, tx, block, evidence, dedupe_key, created_at)
+      VALUES (5042, 'D1', 'HIGH', $1, $2, 100, $3, $4, '2026-10-02T08:37:37Z')`,
+      [Buffer.from(a.slice(2), "hex"), Buffer.alloc(32, i + 1),
+        JSON.stringify({ kind: "underpay", ratio: "10^-12", inflow: { raw: "10000", usdc: "0.01", iface: "erc20" } }), `t-${i}`]);
+  }
+  const a = buildServer({
+    db, bus: new ScanBus(), queue: { enqueue: async () => undefined }, clients: {}, registry: null, attester: null,
+    adminToken: "t".repeat(20), scanRatePerMin: 5, disclosed: new Set([mine]),
+  });
+  const pub = (await a.inject({ method: "GET", url: "/v1/alerts?chainId=5042" })).json().alerts as Record<string, unknown>[];
+  const byAddr = pub.find((x) => x.address !== null)!;
+  assert.equal(String(byAddr.address).toLowerCase(), mine);
+  const hidden = pub.find((x) => x.address === null)!;
+  assert.equal(hidden.tx, null);
+  assert.equal(hidden.block, null);
+  assert.deepEqual(hidden.evidence, { withheld: true, kind: "underpay", ratio: "10^-12" });
+  assert.equal(hidden.createdAt, "2026-10-02T08:00:00.000Z");
+  assert.ok(!JSON.stringify(pub).includes("bb"));
+  const admin = (await a.inject({ method: "GET", url: "/v1/alerts?chainId=5042",
+    headers: { authorization: `Bearer ${"t".repeat(20)}` } })).json().alerts as Record<string, unknown>[];
+  assert.ok(admin.every((x) => x.address !== null));
+});

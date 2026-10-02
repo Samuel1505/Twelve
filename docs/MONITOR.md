@@ -90,6 +90,7 @@ Alert record:
 - No detector ships that can't state, in one sentence, why a legitimate contract would not trigger it.
 
 ## 6. Delivery
+- Public feed (`GET /v1/alerts`, `/v1/alerts/stream`) names only addresses in `DISCLOSED_ADDRESSES` (our own deployments and finished disclosures). Every other alert is published with detector, severity, kind and ratio; address, tx, block and amounts are withheld and the time is rounded to the hour (ADR-022). `Authorization: Bearer $ADMIN_TOKEN` gets full rows; `/v1/status/:address` and webhooks for a subscribed address are unaffected because the caller already supplied the address.
 - Persist → SSE stream `/v1/alerts/stream` (web ticker) → webhooks for subscribers (`X-Twelve-Signature: hex(hmac_sha256(secret, body))`, retries 5× with backoff, dead-letter table) → optional Telegram.
 - Dedupe by `dedupeKey`; per-address cooldown for MEDIUM/INFO.
 

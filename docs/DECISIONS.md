@@ -114,3 +114,15 @@ wrong view. (c) Drop D2 (loses cross-transaction underpays that D1 cannot see).
 **Decision.** (b), plus the 10^4-raw floor of Phase 4. **Consequences.** Underpays of payments far outside a contract's
 usual size (> 10× or < 0.1× its median) are not reported by D2; D1 still covers the same-tx case. Tests encode both
 mainnet shapes (`apps/monitor/test/detectors.test.ts`).
+
+### ADR-022 — The public alert feed names only disclosed addresses (ACCEPTED, Phase 5)
+**Context.** The live ticker (DEMO_SCRIPT, `/alerts`) streams every alert. The full-history replay found real
+third-party bugs under disclosure (MONITOR §9); head-following will find more. CORPUS_AND_TESTING §6–7 forbid
+publishing a third-party address with an open true positive. Showing a tx hash or exact block names it just as well.
+**Options.** (a) Filter in the web only (the API is public, so the data still leaks). (b) Show only our own demo alerts
+(hides that the monitor works on real traffic). (c) Redact in the API: full rows for an allowlist, others published
+with detector/severity/kind/ratio and an hour-rounded time; admin token sees everything.
+**Decision.** (c). `DISCLOSED_ADDRESSES` lists our deployments; an address is added when its disclosure is resolved.
+**Consequences.** The web shows withheld alerts as "third-party contract, details withheld pending disclosure", which
+is honest and proves live coverage. `/v1/status/:address` still returns that address's alerts: whoever asks already
+knows it, and the analyzer report for a verified contract is public anyway.

@@ -28,6 +28,7 @@ export type ServerDeps = {
   scanRatePerMin: number;
   webOrigins?: string[]; // browser origins allowed to call the API (apps/web)
   sources?: SourceFetcher; // verified source for finding excerpts; absent ⇒ /v1/source answers 503
+  disclosed?: ReadonlySet<string>; // lowercase addresses whose alerts the public feed may name (ADR-022)
 };
 
 const STATUS = ["NONE", "CLEAN", "FINDINGS", "INCOMPLETE", "STALE", "REVOKED"] as const;
@@ -76,6 +77,25 @@ async function alertsFor(db: Db, q: AlertQuery): Promise<Record<string, unknown>
      FROM alerts ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY id DESC LIMIT $${args.length}`, args);
   return r.rows.map((x) => ({ id: x.id, chainId: x.chain_id, detector: x.detector, severity: x.severity,
     address: x.address ? getAddress(x.address) : null, tx: x.tx, block: x.block, evidence: x.evidence, createdAt: x.created_at }));
+}
+
+/**
+ * Public alert feed (list + stream) names only disclosed addresses (ADR-022, CORPUS_AND_TESTING §7). Others keep
+ * detector, severity, kind and ratio; address, tx, block and amounts are withheld and the time is coarsened to the
+ * hour so the transaction cannot be recovered from the feed. /v1/status/:address is unaffected: it requires the address.
+ */
+export function publicAlert(a: Record<string, unknown>, disclosed: ReadonlySet<string>): Record<string, unknown> {
+  const addr = typeof a.address === "string" ? a.address.toLowerCase() : null;
+  if (addr && disclosed.has(addr)) return a;
+  const ev = (a.evidence ?? {}) as Record<string, unknown>;
+  const hour = new Date(a.createdAt as string | Date);
+  hour.setUTCMinutes(0, 0, 0);
+  return {
+    id: a.id, chainId: a.chainId, detector: a.detector, severity: a.severity, address: null, tx: null, block: null,
+    evidence: { withheld: true, ...(typeof ev.kind === "string" ? { kind: ev.kind } : {}),
+      ...(typeof ev.ratio === "string" ? { ratio: ev.ratio } : {}) },
+    createdAt: hour.toISOString(),
+  };
 }
 
 export function buildServer(d: ServerDeps): FastifyInstance {
@@ -216,7 +236,10 @@ export function buildServer(d: ServerDeps): FastifyInstance {
         ...(q.cursor ? { before: BigInt(q.cursor) } : {}),
         limit: Math.min(200, Number(q.limit ?? 50)),
       });
-      return { alerts: rows, nextCursor: rows.length ? rows[rows.length - 1]!.id : null };
+      const full = !!d.adminToken && req.headers.authorization === `Bearer ${d.adminToken}`;
+      const disclosed = d.disclosed ?? new Set<string>();
+      return { alerts: full ? rows : rows.map((a) => publicAlert(a, disclosed)),
+        nextCursor: rows.length ? rows[rows.length - 1]!.id : null };
     });
 
   // live ticker (MONITOR §6): the monitor NOTIFYs twelve_alerts with each new alert id
@@ -228,7 +251,7 @@ export function buildServer(d: ServerDeps): FastifyInstance {
     const onNote = async (n: { channel: string; payload?: string | undefined }) => {
       if (n.channel !== "twelve_alerts" || !n.payload) return;
       const [a] = await alertsFor(d.db, { id: BigInt(n.payload), limit: 1 });
-      if (a) res.write(`data: ${JSON.stringify(a)}\n\n`);
+      if (a) res.write(`data: ${JSON.stringify(publicAlert(a, d.disclosed ?? new Set()))}\n\n`);
     };
     client.on("notification", (n) => void onNote(n));
     await client.query("LISTEN twelve_alerts");
