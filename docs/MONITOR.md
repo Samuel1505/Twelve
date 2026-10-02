@@ -64,7 +64,7 @@ Within one tx, contract `C`:
 Raw equality across views in one tx is almost never legitimate: it means one variable fed both interfaces unscaled. Guard: require `x ≥ 10⁴` raw to avoid coincidental tiny-value matches.
 
 ### D2 DUST_OUTFLOW (MEDIUM)
-Native outflow from `C` with `amount_18 ≤ median_out(C) × 10⁻⁹` and `n_out(C) ≥ 20`. The 10⁻⁹ (not 10⁻¹²) margin tolerates legit variance while still requiring a ≥ 9-order-of-magnitude collapse. Suppress if `C`'s histogram already has ≥ 5% mass within 3 orders of this amount (it routinely sends tiny amounts).
+Native outflow from `C` with `amount_18 ≤ median_out(C) × 10⁻⁹` and `n_out(C) ≥ 20`. **Phase 4 refinements:** ignore outflows < 10⁴ raw (rounding dust), and require the 10¹² signature — `amount_18 × 10¹²` within one decade of `median_out(C)` (ADR-021). The 10⁻⁹ (not 10⁻¹²) margin tolerates legit variance while still requiring a ≥ 9-order-of-magnitude collapse. Suppress if `C`'s histogram already has ≥ 5% mass within 3 orders of this amount (it routinely sends tiny amounts).
 
 ### D3 ABNORMAL_SWEEP (MEDIUM)
 Outflows from `C` in one tx ≥ 90% of `C`'s pre-tx `balance_18`, where `max_out_frac(C) < 0.10` historically and `n_out(C) ≥ 20`, and pre-tx balance ≥ 100 USDC. Catches the overpay-drain shape without needing to know intent. Explicitly *not* 10¹²-specific — alert text says "possible drain", evidence includes whether D1 also fired.

@@ -102,3 +102,15 @@ Format: Context → Options → Decision → Consequences. Append new ADRs; neve
 **Options.** (a) Resolve every address (hours per day of chain). (b) Profile only senders (still most addresses; breaks balances for contracts first seen as receivers). (c) Keep lightweight sparse profiles for every address; run detectors on every address as a *candidate*; resolve `getCode` (cached in `accounts`) only for addresses that produced a candidate alert, and drop non-contracts.
 **Decision.** (c). A contract's profile is identical either way, so detector semantics for contracts are unchanged; EOAs never alert. EOA balances over-state (gas is not logged, ARC_LEDGER §2.1), so they never trip the underflow signal.
 **Consequences.** Cost scales with candidates, not addresses (20k blocks: 200 s, 0 resolutions). Profiles table holds all addresses (migration 003 drops `is_contract`/`delegated`; `accounts` owns them). Balance-dependent checks (D3, BALANCE) require `completeHistory` (ingestion from genesis).
+
+### ADR-021 — D2 requires the 10^12 signature, not just a large collapse (ACCEPTED, Phase 4)
+**Context.** D2 fired on any native outflow ≥ 9 orders below a contract's median. Mainnet replay (blocks 21.04M–21.10M,
+a ~3M-log burst) showed two classes: an aggregator sending rounding "plus dust" in round-trip settlements (24 alerts;
+raw 8×10^8–10^10 against ~3–30 USDC payouts) and a smart account paying a fixed fee of exactly 5,000,000 raw natively
+(= "5 USDC" in 6-dec units, typical payouts ~3 USDC) — the actual bug shape (third-party, under disclosure).
+**Options.** (a) Raise the collapse threshold (still fires on arbitrary dust). (b) Require the 10^12 signature: the dust
+amount × 10^12 must fall within one decade of the contract's median payout — i.e. a typical payment expressed in the
+wrong view. (c) Drop D2 (loses cross-transaction underpays that D1 cannot see).
+**Decision.** (b), plus the 10^4-raw floor of Phase 4. **Consequences.** Underpays of payments far outside a contract's
+usual size (> 10× or < 0.1× its median) are not reported by D2; D1 still covers the same-tx case. Tests encode both
+mainnet shapes (`apps/monitor/test/detectors.test.ts`).

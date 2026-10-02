@@ -74,7 +74,7 @@ test("candidates on EOAs are dropped after (cached) code resolution; unknown add
 test("D2: a 10^9 collapse versus a 20+ outflow history fires; routine tiny senders are suppressed", () => {
   const p = history(emptyProfile(C, 1n), 30, parseUsdc18("10"));
   assert.ok((medianOut(p) ?? 0n) > 0n);
-  const fire = processBatch(state({ profiles: new Map([[C, p]]) }), [sys(1, C, USER, 10_000n)]);
+  const fire = processBatch(state({ profiles: new Map([[C, p]]) }), [sys(1, C, USER, 10_000_000n)]); // "10 USDC" in 6-dec
   assert.equal(fire.alerts.filter((a) => a.detector === "D2").length, 1);
   const young = history(emptyProfile(C, 1n), 5, parseUsdc18("10"));
   assert.equal(processBatch(state({ profiles: new Map([[C, young]]) }), [sys(1, C, USER, 1_000n)])
@@ -93,6 +93,19 @@ test("D2 ignores sub-10^4-raw rounding dust (mainnet replay FP class: v4 PoolMan
   // a 10^12 underpay of a 0.3 USDC payment (300000 raw) still fires
   assert.equal(processBatch(state({ profiles: new Map([[C, p]]) }), [sys(1, C, USER, 300_000n)])
     .alerts.filter((a) => a.detector === "D2").length, 1);
+});
+
+test("D2 requires the 10^12 signature (ADR-021): mainnet replay cases", () => {
+  // TP shape: a fixed "5 USDC" fee written in 6-dec units sent natively; typical payouts ~3 USDC
+  const fee = history(emptyProfile(C, 1n), 50, parseUsdc18("3"));
+  assert.equal(processBatch(state({ profiles: new Map([[C, fee]]) }), [sys(1, C, USER, 5_000_000n)])
+    .alerts.filter((a) => a.detector === "D2").length, 1);
+  // FP shape: aggregator rounding dust (806,059,183 raw ≈ "806 USDC" if 6-dec) vs ~30 USDC typical payouts
+  const agg = history(emptyProfile(C, 1n), 200, parseUsdc18("30"));
+  for (const raw of [806_059_183n, 2_302_501_163n, 9_352_036_152n]) {
+    assert.equal(processBatch(state({ profiles: new Map([[C, agg]]) }), [sys(1, C, USER, raw)])
+      .alerts.filter((a) => a.detector === "D2").length, 0, `raw ${raw}`);
+  }
 });
 
 test("D3: sweeping >= 90% of a 100+ USDC balance that never moved >= 10% fires", () => {
