@@ -3,6 +3,7 @@ import Link from "next/link";
 const NAV = [
   { href: "/alerts", label: "Alerts" },
   { href: "/corpus", label: "Corpus" },
+  { href: "/sweep", label: "Mainnet" },
   { href: "/integrate", label: "Integrate" },
 ];
 
@@ -16,7 +17,7 @@ export function Header() {
         </Link>
         <nav className="ml-auto flex items-center gap-1 text-[13px]">
           {NAV.map((n) => (
-            <Link key={n.href} href={n.href} className="pressable rounded-md px-2.5 py-1.5 text-muted hover:bg-elev-2 hover:text-fg">
+            <Link key={n.href} href={n.href} className="pressable rounded-md px-2 py-1.5 text-muted hover:bg-elev-2 hover:text-fg sm:px-2.5">
               {n.label}
             </Link>
           ))}

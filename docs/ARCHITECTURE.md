@@ -40,9 +40,11 @@ Why a CLI and not a library called from TS: language boundary is also the reprod
 - `GET /v1/scans/:id` → job state machine (§3) + report when done.
 - `GET /v1/reports/:reportHash` → canonical report JSON (content-addressed, immutable, cacheable forever).
 - `GET /v1/status/:address` → merged view: on-chain registry status (read via viem at request time) + latest report + open alerts.
-- `GET /v1/alerts?address=&severity=&cursor=` → monitor output.
+- `GET /v1/alerts?address=&severity=&cursor=` → monitor output; `GET /v1/alerts/stream` → SSE. Both name only `DISCLOSED_ADDRESSES`; other alerts are published withheld (ADR-022).
+- `GET /v1/source/:address?chainId=&file=` → one verified source file (Blockscout, key stays server-side), for the web's finding excerpts. Paths equal report `location.file`.
 - `POST /v1/subscriptions {address, webhookUrl}` → HMAC-signed alert delivery.
-- `GET /v1/sweep` → aggregate mainnet sweep stats (see CORPUS_AND_TESTING §6).
+- `GET /v1/sweep` → aggregate mainnet sweep stats (see CORPUS_AND_TESTING §6). Not built: the sweep is Phase 7; `/sweep` shows the Phase 2 sample and the Phase 4 replay from committed evidence until then.
+- Errors written to `scans.error`, SSE and logs pass through `redact()` (provider URLs carry keys, I11). SSE replies carry the CORS headers and flush on connect.
 Rate limits: per-IP token bucket on scans; a scan for an address whose `codehash` + tool version already has a report returns the cached report (content-addressed dedupe).
 
 ### 2.3 attester (module inside api)
