@@ -75,6 +75,6 @@ Goal: replace every `VERIFY:` that blocks later phases with a recorded fact.
 | Gate target, CLEAN (corpus c10 safe) | mainnet 5042 | `0x42957b36f5623912ded1a0a16bba3dad22e571c9` | `0xf1e76ecb565fc077f279ce2c1dcfb1e42a4bfd0aa7dff81f65f857d5956348f1` | yes (Pro API) |
 | LeakyRefund | mainnet 5042 | `0xa6c15edc8ceffb558a54ead5bd9d833a589276bc` | (D1Demo deploy) | yes (Pro API) |
 | LeakyRefund | testnet 5042002 | `0x3dbe97cf796e313be59b61e836488203cb5cbe07` | (D1Demo deploy) | no |
-| FixedRefund | mainnet | | | |
-| OverpayVault | mainnet | | | |
+| FixedRefund | mainnet 5042 | `0x62e325c4aab5f3808dcaafb71d932f4e97455368` | `0x57488d5e6f0a8d57b41e2a2ae94c726534e617045de997d69823d0f52aca82b3` (attested CLEAN `0x26211614…c510`) | yes (Pro API) |
+| OverpayVault | mainnet 5042 | `0xc2dc300e524cb9ee18887e7c2333d24403df076a` | `0x3cef66e811915cf0568acf26d3b3dd0a0b9ab185a731bd6b60900cc8a106eb4f` (attested FINDINGS `0x317a148e…b1a3a7`; 0.01 USDC deposit, unrecoverable by design) | yes (Pro API) |
 | Attester EOA | testnet + mainnet | `0xe98540d28F45830E01D237251Bfc4777E69c9A46` | — | — |

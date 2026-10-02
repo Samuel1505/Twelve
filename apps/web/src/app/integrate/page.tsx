@@ -138,8 +138,12 @@ const ok = given.length === expected.length && timingSafeEqual(given, expected);
           <Section id="ci" n={6} title="Scan in CI" lead="Run the analyzer on your sources before deploy. It exits non-zero when a finding meets the threshold, so the build stops at the line that would have shipped.">
             <CodeBlock lang="sh" lineNumbers={false} title="From a checkout of Twelve" code={`uv run --project analyzer twelve scan path/to/contracts --fail-on HIGH`} />
             <p className="text-[13px] leading-relaxed text-muted">
-              Typed amounts that make mixing the two views a compile error (<span className="num text-fg">Usdc6</span>,
-              <span className="num text-fg"> Usdc18</span>) ship in the next release.
+              Better still, make the bug unrepresentable: import <span className="num text-fg">contracts/src/guard/Usdc.sol</span> and
+              type amounts as <span className="num text-fg">Usdc6</span> or <span className="num text-fg">Usdc18</span>. Mixing
+              them is then a compile error, and <span className="num text-fg">Usdc.toNative</span> /
+              <span className="num text-fg"> Usdc.toErc20</span> convert without losing dust. Legacy code that can&apos;t be
+              retyped can pay through <span className="num text-fg">TwelvePayout</span>, which reverts when the two units
+              disagree.
             </p>
           </Section>
         </div>

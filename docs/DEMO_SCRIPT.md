@@ -23,7 +23,7 @@ Two formats from one script: a **3:00 recorded video** (the submission asset) an
 | Pre-approved USDC allowance from wallet A to both shops | avoids an approve tx on camera |
 | Explorer tabs pre-opened (explorer.arc.io) | registry, LeakyRefund, wallet A |
 | Terminal with `twelve verify` ready | large font |
-| `contracts/compile-fail/Mix.sol` ready | for compile-error beat |
+| `contracts/fixtures/compile-fail/Mix.sol` ready (`contracts/script/compile-fail.sh`) | for compile-error beat |
 | Fallback clips recorded | see §6 |
 
 Screen: 1920×1080, browser zoom 125%, dark theme, notifications off. One browser window + one terminal, arranged left/right for the split-screen beats.
@@ -44,16 +44,16 @@ Screen: 1920×1080, browser zoom 125%, dark theme, notifications off. One browse
 **Timing rule:** if the alert hasn't appeared by 3 s, cut to fallback clip F1; never wait on camera.
 
 ### Beat 3 — Before deploy: the analyzer (0:50–1:25)
-**Screen:** Paste LeakyRefund's address → progress chips (Resolving → Fetching → Matching → Analyzing → Attesting) → verdict **FINDINGS**. Finding card: `TW-003 NATIVE_SINK_6 · HIGH · DEFINITE`, source line highlighted, unit trace chips: `paid6 [1,6] ← transferFrom amount` → `call{value}` expects `[1,18]`.
+**Screen:** Paste LeakyRefund's address → progress chips (Resolving → Fetching → Matching → Analyzing → Attesting) → verdict **FINDINGS**. Finding card: `TW-003 NATIVE_SINK_6 · HIGH · INFERRED`, source line highlighted, unit trace chips: `paid6 [1,6] ← transferFrom amount` → `call{value}` expects `[1,18]`.
 **Narration:** "Before anyone deployed it, the analyzer would have said this. It tracks the decimal unit of every USDC value through the contract and stops at the line where 6 meets 18. It compiled the verified source and confirmed the bytecode matches what's actually on-chain — the report is about the deployed code, not a copy."
 **Screen:** Paste FixedRefund → **CLEAN**.
 
 ### Beat 4 — On-chain attestation + gate (1:25–1:55)
-**Screen:** Attestation panel: registry tx link, codehash, reportHash. Explorer shows `Attested` event. Then wallet A calls `TwelveGate.forward(LeakyRefund, …)` → reverts `TargetNotClean(FINDINGS)`. Same call to FixedRefund → succeeds.
+**Screen:** Attestation panel: registry tx link, codehash, reportHash. Explorer shows `Attested` event. Then wallet A calls `TwelveGate.forward(LeakyRefund, …)` → reverts `TargetNotClean(FINDINGS)`. Same forwarded call to FixedRefund → passes the gate (status CLEAN). The gate forwards native value only, and FixedRefund is paid through the ERC-20 view, so the demo forwards a plain call (e.g. `sold()`), not a purchase (GUARD §3).
 **Narration:** "Every result is attested on Arc, bound to the contract's codehash — change the code and it goes stale on its own. Any router or wallet can check it in one call. This gate refuses to send native USDC to the leaky shop, and lets it through to the fixed one."
 
 ### Beat 5 — Verify it yourself (1:55–2:10)
-**Screen:** Terminal: `twelve verify --address <LeakyRefund>` → `reportHash 0x… matches registry ✓`.
+**Screen:** Terminal: `curl $API/v1/reports/<hash> > r.json && uv run twelve verify --report r.json` → `MATCH recomputed 0x… claimed 0x…`. The report pins the analyzer commit: verify from that checkout (the CLI prints the `git checkout` when it differs).
 **Narration:** "You don't have to trust us. Rerun the analyzer on the same verified source and you get the same hash that's on-chain."
 
 ### Beat 6 — The fix is a type (2:10–2:30)
@@ -63,6 +63,7 @@ Screen: 1920×1080, browser zoom 125%, dark theme, notifications off. One browse
 ### Beat 7 — Proof it's real (2:30–2:50)
 **Screen:** `/corpus` table (recall 100% on HIGH, 0 false HIGHs on safe twins), `/sweep` (N verified mainnet contracts scanned, verdict distribution). **Only real numbers.**
 **Narration:** "It's measured: every planted high-severity bug caught, zero false alarms on the fixed twins — and it's already swept every verified contract on Arc mainnet."
+> Until Phase 7's sweep has run, replace the last clause with what `/sweep` shows (the 15-contract sample and the full-history monitor replay). Never narrate a number the page does not show (§3).
 
 ### Beat 8 — Close (2:50–3:00)
 **Screen:** Architecture one-liner: `analyzer → registry → monitor → types`. URL.

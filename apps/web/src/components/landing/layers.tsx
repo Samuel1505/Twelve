@@ -17,7 +17,18 @@ function leakySource(from: number, to: number): string {
   return src.split("\n").slice(from - 1, to).join("\n");
 }
 
+/** The compile-fail fixture (contracts/fixtures/compile-fail/Mix.sol), from `contract` to the end. */
+function mixFixture(): { code: string; first: number; line: number; col: [number, number] } {
+  const lines = readFileSync(join(process.cwd(), "..", "..", "contracts", "fixtures", "compile-fail", "Mix.sol"), "utf8")
+    .replace(/\n$/, "").split("\n");
+  const start = lines.findIndex((l) => l.startsWith("contract "));
+  const at = lines.findIndex((l) => l.includes("paid + balance"));
+  const c = lines[at]!.indexOf("paid + balance");
+  return { code: lines.slice(start).join("\n"), first: start + 1, line: at + 1, col: [c, c + "paid + balance".length] };
+}
+
 export function Layers() {
+  const mix = mixFixture();
   const f = report.reportCore.findings[0]!;
   const loc = f.location;
   const excerptFrom = loc.startLine - 5;
@@ -129,22 +140,19 @@ export function Layers() {
         title="The fix is a type"
         body={
           <>
-            Give each view its own type and mixing them stops compiling. The error below is what solc 0.8.30 prints today;
-            Twelve&apos;s <span className="num text-fg">Usdc6</span> / <span className="num text-fg">Usdc18</span> library,
-            with checked conversions that return the dust instead of dropping it, ships in the next release.
+            Give each view its own type and mixing them stops compiling. Twelve&apos;s guard library defines
+            <span className="num text-fg">Usdc6</span> and <span className="num text-fg">Usdc18</span>, with conversions that
+            return the dust instead of dropping it. The fixed shop on mainnet uses it and scans clean.
           </>
         }
         artifact={
           <div className="space-y-3">
             <CodeBlock
-              title="Refund.sol"
-              highlight={4}
-              underline={[11, 21]}
-              code={`// Usdc6 and Usdc18 wrap uint256, one type per view
-
-function refund(Usdc6 paid, Usdc18 bal) pure returns (Usdc6) {
-    return paid + bal;
-}`}
+              title="fixtures/compile-fail/Mix.sol"
+              firstLine={mix.first}
+              highlight={mix.line}
+              underline={mix.col}
+              code={mix.code}
             />
             <div className="rounded-xl border border-bad/25 bg-bad-soft px-4 py-3">
               <p className="num text-[12.5px] leading-relaxed text-fg/90">
@@ -152,6 +160,10 @@ function refund(Usdc6 paid, Usdc18 bal) pure returns (Usdc6) {
                 + does not match the type of the first operand, which is Usdc6.
               </p>
             </div>
+            <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-line bg-line text-[13px]">
+              <Fact k="FixedRefund (typed)" v={<Hash value={MAINNET.fixedRefund} />} />
+              <Fact k="Status" v={<Pill tone="CLEAN" />} />
+            </dl>
           </div>
         }
       />

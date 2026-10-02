@@ -14,4 +14,8 @@ export const MAINNET = {
   systemEmitter: "0xfffffffffffffffffffffffffffffffffffffffe",
   /** Deliberately vulnerable demo shop (contracts/src/demo/LeakyRefund.sol). */
   leakyRefund: "0xA6c15eDC8ceffb558A54ead5bd9d833A589276bC",
+  /** LeakyRefund's logic with Usdc6/Usdc18 (contracts/src/demo/FixedRefund.sol); attested CLEAN. */
+  fixedRefund: "0x62e325C4aaB5f3808DCAaFb71d932f4E97455368",
+  /** Drain shape guarded by TwelvePayout (contracts/src/demo/OverpayVault.sol); attested FINDINGS. */
+  overpayVault: "0xc2Dc300E524Cb9Ee18887E7c2333D24403dF076A",
 } as const;
