@@ -61,7 +61,7 @@ Rules:
 - Analyzer treats `Usdc.*` typed sources/sinks as DEFINITE (ANALYZER §5.1).
 
 Tests (`test/Usdc.t.sol`): round-trip fuzz `toErc20(toNative(a)) == (a, 0)`; `toErc20` dust exactness fuzz; overflow on `toNative` near `type(uint256).max / SCALE`; operators match raw semantics.
-Compile-fail test: `test/compile-fail/Mix.sol` containing `Usdc6 + Usdc18` — CI asserts `forge build` of that file **fails** with a type error. (Store as a fixture outside `src`, compile via `solc` directly in a script; this is the demo's "compile error" beat.)
+Compile-fail test: `contracts/fixtures/compile-fail/Mix.sol` containing `Usdc6 + Usdc18`; `contracts/script/compile-fail.sh` asserts `forge build` of that file **fails** with solc Error 5653 (operator type mismatch). (Store as a fixture outside `src`, compile via `solc` directly in a script; this is the demo's "compile error" beat.)
 
 ## 2. `TwelvePayout.sol` — runtime check for untyped legacy code
 
