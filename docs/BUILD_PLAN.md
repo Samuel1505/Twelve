@@ -40,7 +40,7 @@ Goal: replace every `VERIFY:` that blocks later phases with a recorded fact.
 - Backfill from genesis, head following, continuity check, pairing with anomaly alerts.
 - Profiles, D1–D5, replay CLI, FP triage table in MONITOR §9.
 - Proxy-upgrade auto-revoke (test on testnet with a real upgrade).
-**Exit:** replay of full history within FP targets; D1 fires on the demo LeakyRefund tx within 2 s of the block on mainnet; D4 revokes within 5 s on testnet. **Status 2026-10-02:** D1 mainnet ✅ (≤ 0.94 s), D4 testnet ✅ (+3–4 s); replay ⏳ 54% (running detached, MONITOR §9).
+**Exit:** replay of full history within FP targets; D1 fires on the demo LeakyRefund tx within 2 s of the block on mainnet; D4 revokes within 5 s on testnet. **Met 2026-10-02:** D1 mainnet ✅ (≤ 0.94 s), D4 testnet ✅ (+3–4 s), full-history replay ✅ within FP targets (D1 0 FP; D2+D3 ≤ 1.54/day, MONITOR §9).
 
 ## Phase 5 — Web
 - `/`, `/c/[address]` (findings with highlighted source lines and unit trace rendered as a chain of chips `msg.value [18] → credits[user] [18] → USDC.transfer expects [6]`), attestation panel with explorer links and a copyable `twelve verify` command, `/alerts` live ticker, `/integrate`, `/corpus`, `/sweep`.

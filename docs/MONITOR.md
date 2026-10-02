@@ -108,19 +108,21 @@ apps/monitor/src/
   replay.ts               # CLI: replay [from,to] → alert stats (no delivery)
 ```
 
-## 9. Replay results (fill in during Phase 4)
+## 9. Replay results (Phase 4)
 
-Mainnet replay `apps/monitor/src/replay.ts --chain 5042 --from 0` (Infura). **Partial: blocks 0 – 12,898,848 of 23,783,527
-(54.2%)** — 862,018 Transfer logs, 450,282 movements, 19,505 profiled addresses. Nearly all activity sits in the last
-~45% of history (7–23 logs/block); under this key's sustained-throughput limits (HTTP 429 on any call after minutes of
-load) the remainder is ~10–15 h of wall clock, beyond this session's background limit. Resume: same command (state file).
-Blocks/day assumes ~0.5 s blocks (172,800/day); the dense part replayed so far is ~0.9M blocks ≈ 5.2 days.
+**Full mainnet history**, `apps/monitor/src/replay.ts --chain 5042 --from 0 --to 23,783,527` (Infura), completed
+2026-10-02: **67,687,598 Transfer logs → 43,040,670 movements, 1,249,355 profiled addresses.** Activity is concentrated
+after block ~12.0M (the "active period", ~68 days at ~0.5 s blocks); one burst at 21.05M–21.3M ran 100–200 logs/block.
+Detector rules evolved during the run (ADR-021, D2 routine quieting, production cooldown in the tally); the D2 row is the
+recorded evidence re-filtered under the **final** rules, keeping at most 20 alerts per contract for the routine rule
+(evidence lacks the full outflow histogram), so it is an **upper bound**.
 
-| Detector | Blocks replayed | Alerts | Triaged TP | Triaged FP | Notes |
+| Detector | Blocks replayed | Alerts (final rules) | Triaged TP | Triaged FP | Notes |
 |---|---|---|---|---|---|
-| D1 | 0 – 12.90M | 0 | – | – | — |
-| D2 | 0 – 12.90M | 12 (pre-fix) → 0 | 0 | 12 | All native outflows of 40–9,900 raw from Uniswap v4 `PoolManager` (`0x8366a39C…0951`) and two routers in the same txs: settlement/rounding dust. Fix: ignore outflows < 10^4 raw (a 10^12 underpay of any ≥ 0.01 USDC payment is ≥ 10^4 raw; same floor as D1). |
-| D3 | 0 – 12.90M | 3 (≈ 0.6/day) | 0 drains | 3 lifecycle sweeps | `UniswapV2Pair` `0xC7c16535…1a86` (final LP withdrawal), `DyorPumpToken` `0x4C9D1c8F…0000` (bonding-curve graduation), "ArcPumpSwap LPs" `0x469F8a1B…adDd`. Within the "handful per day" target; kept as specified ("possible drain", MEDIUM). |
-| PAIRING | 0 – 12.90M | 0 after ARC_LEDGER §2.2 no-op classes | – | – | 769 pre-fix in a 20k-block head sample were all zero-value / self ERC-20 transfers. |
+| D1 | 0 – 23.78M (all) | 49 tx-level alerts, 4 contracts (~0.7/active day) | 49 (4 contracts) | **0** | All the cross-view raw-equality fingerprint: a swap executor settling a Uniswap v4 swap natively with the 6-dec amount; two contracts of one operator forwarding sale proceeds natively unscaled on every trade (45 alerts); a Diamond router whose caller attached `msg.value` = the 6-dec amount (2 txs, dust impact). Third-party: details withheld pending disclosure (CORPUS_AND_TESTING §7). |
+| D2 | 0 – 23.78M | ≤ 50 (≤ 0.73/active day), 35 contracts | 1 (fixed "5 USDC" fee paid natively, 3 txs) | 14 (Uniswap v4 PoolManager, UniversalRouter, PositionManager, ArcSettler, RelayRouterV3, an aggregator proxy: settlement dust) | 35 from unverified contracts / EIP-7702 smart accounts not individually classified. Pre-refinement classes removed: < 10^4-raw rounding dust (floor), aggregator round-trip dust (ADR-021 signature), UniversalRouter dust-swap spam (routine quieting). |
+| D3 | 0 – 23.78M | 55, 55 distinct contracts (~0.8/active day) | 0 drains | 55 lifecycle sweeps (sampled: Uniswap V2 pair final LP exit, launchpad token graduations, LP pools) | One per contract; within target, kept as specified ("possible drain", MEDIUM). |
+| PAIRING | 0 – 23.78M | 0 | – | – | After the ARC_LEDGER §2.2 no-op classes (zero-value and self ERC-20 transfers). |
 
-Testnet exit runs (D1 latency, D4 revoke): `docs/evidence/phase4-testnet-exits.md`.
+**Gate:** D1 ≈ 0 FP — met (0 FP over full history). D2 + D3 ≤ a handful per day — met (≤ 1.54 per active day, upper bound).
+Testnet exit runs (D1 latency, D4 revoke) and mainnet D1 latency: `docs/evidence/phase4-testnet-exits.md`.
