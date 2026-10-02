@@ -10,6 +10,8 @@ import type { Attester } from "./attester.js";
 import { isChainId, type ChainId } from "./config.js";
 import { TERMINAL, getReport, getScan, insertScan, latestReportFor, scanEvents, type Db } from "./db.js";
 import type { ScanBus } from "./events.js";
+import { redact } from "./redact.js";
+import type { SourceFetcher } from "./source.js";
 
 export interface Queue {
   enqueue(scanId: string): Promise<void>;
@@ -25,6 +27,7 @@ export type ServerDeps = {
   adminToken: string | null;
   scanRatePerMin: number;
   webOrigins?: string[]; // browser origins allowed to call the API (apps/web)
+  sources?: SourceFetcher; // verified source for finding excerpts; absent ⇒ /v1/source answers 503
 };
 
 const STATUS = ["NONE", "CLEAN", "FINDINGS", "INCOMPLETE", "STALE", "REVOKED"] as const;
@@ -93,7 +96,7 @@ export function buildServer(d: ServerDeps): FastifyInstance {
       try {
         (out.chains as Record<string, unknown>)[id] = { head: (await c!.getBlockNumber()).toString() };
       } catch (e) {
-        (out.chains as Record<string, unknown>)[id] = { error: String(e).slice(0, 120) };
+        (out.chains as Record<string, unknown>)[id] = { error: redact(String(e)).slice(0, 120) };
       }
     }
     return out;
@@ -174,7 +177,7 @@ export function buildServer(d: ServerDeps): FastifyInstance {
             : "implementation swaps are revoked by the monitor; on-chain status alone cannot see them",
         };
       } catch (e) {
-        onchain = { error: String(e).slice(0, 200) };
+        onchain = { error: redact(String(e)).slice(0, 200) };
       }
     }
     const latest = await latestReportFor(d.db, chainId, address);
@@ -184,6 +187,21 @@ export function buildServer(d: ServerDeps): FastifyInstance {
         scannedAt: latest.created_at, core: JSON.parse(latest.core_jcs) } : null,
       alerts: await alertsFor(d.db, { chainId, address, limit: 20 }),
     };
+  });
+
+  // one verified file, for the web's finding excerpts (paths equal report location.file)
+  app.get<{ Params: { address: string }; Querystring: { chainId?: string; file?: string } }>("/v1/source/:address", async (req, reply) => {
+    if (!isAddress(req.params.address)) return reply.code(400).send({ error: "not an address" });
+    const chainId = Number(req.query.chainId ?? 5042);
+    if (!isChainId(chainId)) return reply.code(400).send({ error: "unsupported chainId" });
+    if (!req.query.file) return reply.code(400).send({ error: "file is required" });
+    if (!d.sources) return reply.code(503).send({ error: "source lookup not configured" });
+    const r = await d.sources(chainId, getAddress(req.params.address));
+    if (!r.ok) return reply.code(r.error.code === "NOT_VERIFIED" ? 404 : 502).send({ error: r.error.code });
+    const content = r.value[req.query.file];
+    if (content === undefined) return reply.code(404).send({ error: "FILE_NOT_FOUND", files: Object.keys(r.value).sort() });
+    reply.header("cache-control", "public, max-age=3600");
+    return { file: req.query.file, content };
   });
 
   app.get<{ Querystring: { chainId?: string; address?: string; severity?: string; cursor?: string; limit?: string } }>(

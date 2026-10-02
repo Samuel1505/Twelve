@@ -11,6 +11,7 @@ import {
   attestedReport, findReport, getReport, getScan, insertReport, setState, upsertAttestation, type Db,
 } from "./db.js";
 import type { ScanBus } from "./events.js";
+import { redactDeep } from "./redact.js";
 
 export type ScanDeps = {
   db: Db;
@@ -21,6 +22,7 @@ export type ScanDeps = {
 };
 
 async function transition(d: ScanDeps, id: string, state: string, patch: Parameters<typeof setState>[3] = {}) {
+  if (patch.error !== undefined) patch = { ...patch, error: redactDeep(patch.error) }; // served publicly: no RPC keys
   await setState(d.db, id, state, patch);
   d.bus.publish({
     scanId: id, state,

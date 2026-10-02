@@ -95,3 +95,29 @@ test("alerts: list with filters/cursor, subscriptions return a one-time secret",
   assert.equal((await app().inject({ method: "POST", url: "/v1/subscriptions",
     payload: { address: chain.registry, webhookUrl: "http://evil.example" } })).statusCode, 400);
 });
+
+test("GET /v1/source/:address serves one verified file and maps lookup failures to statuses", async () => {
+  const files: Record<string, string> = { "src/A.sol": "contract A {}" };
+  const a = buildServer({
+    db, bus: new ScanBus(), queue: { enqueue: async () => undefined }, clients: {}, registry: null, attester: null,
+    adminToken: null, scanRatePerMin: 5,
+    sources: async (_c, addr) => addr.toLowerCase().endsWith("1")
+      ? { ok: false, error: { code: "NOT_VERIFIED", message: "no" } } : { ok: true, value: files },
+  });
+  const addr = "0x000000000000000000000000000000000000dEaD";
+  const r = await a.inject({ method: "GET", url: `/v1/source/${addr}?chainId=5042&file=src/A.sol` });
+  assert.equal(r.statusCode, 200);
+  assert.equal(r.json().content, "contract A {}");
+  assert.equal((await a.inject({ method: "GET", url: `/v1/source/${addr}?file=nope.sol` })).statusCode, 404);
+  assert.equal((await a.inject({ method: "GET", url: `/v1/source/${addr}` })).statusCode, 400);
+  const nv = await a.inject({ method: "GET", url: `/v1/source/0x0000000000000000000000000000000000000001?file=x` });
+  assert.equal(nv.statusCode, 404);
+  assert.equal(nv.json().error, "NOT_VERIFIED");
+});
+
+test("redact keeps scheme and host, drops path keys and query keys", async () => {
+  const { redact } = await import("../src/redact.js");
+  const s = redact('Status: 429\nURL: https://arc-mainnet.infura.io/v3/abc123def\n x "https://api.blockscout.com/5042/api/v2/smart-contracts/0x1?apikey=sekrit"');
+  assert.ok(!s.includes("abc123def") && !s.includes("sekrit"));
+  assert.match(s, /https:\/\/arc-mainnet\.infura\.io\/…/);
+});

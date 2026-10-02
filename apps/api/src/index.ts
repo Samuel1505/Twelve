@@ -9,6 +9,8 @@ import { connect, migrate } from "./db.js";
 import { ScanBus } from "./events.js";
 import { processScan } from "./scans.js";
 import { buildServer } from "./server.js";
+import { redact } from "./redact.js";
+import { blockscoutSources } from "./source.js";
 
 const QUEUE = "scan";
 
@@ -33,7 +35,7 @@ async function main(): Promise<void> {
   const analyzer = cliAnalyzer(env.ANALYZER_CMD, env.ANALYZER_CWD);
 
   const boss = new PgBoss(env.DATABASE_URL);
-  boss.on("error", (e) => console.error(JSON.stringify({ level: "error", msg: "pg-boss", error: String(e) })));
+  boss.on("error", (e) => console.error(JSON.stringify({ level: "error", msg: "pg-boss", error: redact(String(e)) })));
   await boss.start();
   await boss.createQueue(QUEUE);
   // one scan at a time: the analyzer is CPU-bound and the attester is a single writer anyway
@@ -45,6 +47,7 @@ async function main(): Promise<void> {
     db, bus, clients, attester, registry: env.REGISTRY_ADDRESS ?? null, adminToken: env.ADMIN_TOKEN ?? null,
     scanRatePerMin: env.SCAN_RATE_PER_MIN,
     webOrigins: env.WEB_ORIGIN,
+    sources: blockscoutSources(env.BLOCKSCOUT_API_KEY),
     queue: { enqueue: async (scanId) => void (await boss.send(QUEUE, { scanId }, { retryLimit: 2, retryBackoff: true })) },
   });
   await app.listen({ port: env.API_PORT, host: "0.0.0.0" });

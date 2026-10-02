@@ -9,6 +9,7 @@ import { twelveRegistryAbi, formatUsdc18, usdc18, type Usdc18 } from "@twelve/sh
 import { chainOf, codehashOf } from "./chain.js";
 import type { ChainId } from "./config.js";
 import { err, ok, type Result } from "./result.js";
+import { redact } from "./redact.js";
 
 export type AttestRequest = {
   target: Address;
@@ -73,7 +74,7 @@ export function makeAttester(d: AttesterDeps): Attester {
   }
 
   function classify(e: unknown): AttestError {
-    const msg = e instanceof Error ? e.message : String(e);
+    const msg = redact(e instanceof Error ? e.message : String(e));
     if (/blocklist|blacklist/i.test(msg)) return { code: "BLOCKLISTED", retryable: false, message: msg.slice(0, 300) };
     if (/revert|CodehashMismatch|TargetHasNoCode|InvalidVerdict|NothingToRevoke/i.test(msg)) {
       return { code: "REVERTED", retryable: false, message: msg.slice(0, 300) };
