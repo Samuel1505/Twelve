@@ -1,7 +1,6 @@
 import { Hash } from "@/components/ui/address";
 import { Pill, UnitChip, type PillTone } from "@/components/ui/unit-chip";
 import { type AlertRow, type Flow, DETECTORS, ago, isWithheld, summarize } from "@/lib/alerts";
-import { cn } from "@/lib/cn";
 
 const tone = (s: string): PillTone => (["HIGH", "MEDIUM", "LOW", "INFO", "OPS"].includes(s) ? (s as PillTone) : "INFO");
 
@@ -21,7 +20,7 @@ export function AlertItem({ a, now, showAddress = true, detailed = false }: {
           {withheld && <span className="text-[12px] text-subtle">third-party · withheld</span>}
         </div>
         {(s.inflow || s.outflow) && (
-          <div className={cn("grid gap-1.5", detailed ? "sm:grid-cols-2 sm:gap-3" : "")}>
+          <div className="grid gap-1.5">
             {s.inflow && <FlowLine dir="in" f={s.inflow} />}
             {s.outflow && <FlowLine dir="out" f={s.outflow} bad />}
           </div>
@@ -44,8 +43,7 @@ function FlowLine({ dir, f, bad }: { dir: "in" | "out"; f: Flow; bad?: boolean }
       <span className="w-6 text-subtle">{dir}</span>
       <span className="text-fg">{f.raw}</span>
       <UnitChip exp={v} label={v === 6 ? "erc20 · 6 dec" : "native · 18 dec"} />
-      <span className="text-subtle">=</span>
-      <span className={bad ? "text-bad" : "text-fg"}>{f.usdc} USDC</span>
+      <span className="whitespace-nowrap"><span className="text-subtle">= </span><span className={bad ? "text-bad" : "text-fg"}>{f.usdc} USDC</span></span>
     </div>
   );
 }

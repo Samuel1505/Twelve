@@ -157,6 +157,7 @@ export function buildServer(d: ServerDeps): FastifyInstance {
     reply.hijack();
     const res = reply.raw;
     res.writeHead(200, { ...sseCors(reply.getHeaders()), "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
+    res.write(": open\n\n"); // flush headers now: EventSource only reports open once they arrive
     const send = (data: unknown) => res.write(`data: ${JSON.stringify(data)}\n\n`);
     for (const e of await scanEvents(d.db, scan.id)) send({ scanId: scan.id, state: e.stage, error: e.error });
     if (TERMINAL.has(scan.state)) return res.end();
@@ -251,6 +252,7 @@ export function buildServer(d: ServerDeps): FastifyInstance {
     reply.hijack();
     const res = reply.raw;
     res.writeHead(200, { ...sseCors(reply.getHeaders()), "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
+    res.write(": open\n\n"); // flush headers now: EventSource only reports open once they arrive
     const client = await d.db.connect();
     const onNote = async (n: { channel: string; payload?: string | undefined }) => {
       if (n.channel !== "twelve_alerts" || !n.payload) return;

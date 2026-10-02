@@ -67,6 +67,11 @@ function renderLine(line: string, lang: "sol" | "sh", underline?: [number, numbe
   return nodes;
 }
 
+/** One highlighted line, for views that lay out lines themselves (diffs). */
+export function CodeLine({ text, lang = "sol" }: { text: string; lang?: "sol" | "sh" }) {
+  return <>{renderLine(text, lang)}</>;
+}
+
 export function CodeBlock({
   code, lang = "sol", firstLine = 1, highlight, underline, title, copy = true, className, lineNumbers = true,
 }: {
