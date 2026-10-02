@@ -59,32 +59,36 @@ def solc_long_version(solc: Path) -> str:
     return ".".join(m.group(1).split(".")[:4]) if "+commit." in m.group(1) else m.group(1)
 
 
-def _collect_sources(entry: Path, base: Path) -> dict[str, str]:
-    """The entry file plus relative imports, keyed by POSIX path relative to `base` (deterministic, I4)."""
-    out: dict[str, str] = {}
+def _collect_files(entry: Path) -> set[Path]:
+    """The entry file plus everything it reaches through relative imports, as absolute paths."""
+    seen: set[Path] = set()
     stack = [entry.resolve()]
-    base = base.resolve()
     while stack:
         p = stack.pop()
-        name = p.relative_to(base).as_posix()
-        if name in out:
+        if p in seen:
             continue
-        text = p.read_text(encoding="utf-8")
-        out[name] = text
-        for imp in _IMPORT_RE.findall(text):
+        seen.add(p)
+        for imp in _IMPORT_RE.findall(p.read_text(encoding="utf-8")):
             if imp.startswith("."):
                 stack.append((p.parent / imp).resolve())
-    return dict(sorted(out.items()))
+    return seen
+
+
+def _source_root(base: Path, files: set[Path]) -> Path:
+    """Deepest directory containing `base` and every file. Equals `base` unless an import climbs out of it
+    (e.g. `../guard/Usdc.sol`); then source names keep the shared prefix so solc resolves the relative imports."""
+    return Path(os.path.commonpath([str(base.resolve()), *(str(f.parent) for f in files)]))
 
 
 def standard_json_for_path(path: Path, evm_version: str = DEFAULT_EVM_VERSION) -> dict[str, Any]:
-    """Pre-deploy mode input: a .sol file (and its relative imports) or every .sol under a directory."""
-    if path.is_dir():
-        sources: dict[str, str] = {}
-        for f in sorted(path.rglob("*.sol")):
-            sources.update(_collect_sources(f, path))
-    else:
-        sources = _collect_sources(path, path.parent)
+    """Pre-deploy mode input: a .sol file (and its relative imports) or every .sol under a directory.
+    Source names are POSIX paths relative to the scanned directory (or the file's directory) — deterministic, I4."""
+    entries = sorted(path.rglob("*.sol")) if path.is_dir() else [path]
+    files: set[Path] = set()
+    for f in entries:
+        files |= _collect_files(f)
+    root = _source_root(path if path.is_dir() else path.parent, files)
+    sources = {f.relative_to(root).as_posix(): f.read_text(encoding="utf-8") for f in files}
     return {
         "language": "Solidity",
         "sources": {name: {"content": text} for name, text in sorted(sources.items())},
