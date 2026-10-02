@@ -74,7 +74,7 @@ test("candidates on EOAs are dropped after (cached) code resolution; unknown add
 test("D2: a 10^9 collapse versus a 20+ outflow history fires; routine tiny senders are suppressed", () => {
   const p = history(emptyProfile(C, 1n), 30, parseUsdc18("10"));
   assert.ok((medianOut(p) ?? 0n) > 0n);
-  const fire = processBatch(state({ profiles: new Map([[C, p]]) }), [sys(1, C, USER, 1_000n)]);
+  const fire = processBatch(state({ profiles: new Map([[C, p]]) }), [sys(1, C, USER, 10_000n)]);
   assert.equal(fire.alerts.filter((a) => a.detector === "D2").length, 1);
   const young = history(emptyProfile(C, 1n), 5, parseUsdc18("10"));
   assert.equal(processBatch(state({ profiles: new Map([[C, young]]) }), [sys(1, C, USER, 1_000n)])
@@ -82,6 +82,17 @@ test("D2: a 10^9 collapse versus a 20+ outflow history fires; routine tiny sende
   const mixed = history(history(emptyProfile(C, 1n), 25, parseUsdc18("10")), 5, 2_000n);
   assert.equal(processBatch(state({ profiles: new Map([[C, mixed]]) }), [sys(1, C, USER, 1_000n)])
     .alerts.filter((a) => a.detector === "D2").length, 0);
+});
+
+test("D2 ignores sub-10^4-raw rounding dust (mainnet replay FP class: v4 PoolManager settlement)", () => {
+  const p = history(emptyProfile(C, 1n), 106, parseUsdc18("0.3"));
+  for (const raw of [40n, 99n, 9_900n]) {
+    assert.equal(processBatch(state({ profiles: new Map([[C, p]]) }), [sys(1, C, USER, raw)])
+      .alerts.filter((a) => a.detector === "D2").length, 0, `raw ${raw}`);
+  }
+  // a 10^12 underpay of a 0.3 USDC payment (300000 raw) still fires
+  assert.equal(processBatch(state({ profiles: new Map([[C, p]]) }), [sys(1, C, USER, 300_000n)])
+    .alerts.filter((a) => a.detector === "D2").length, 1);
 });
 
 test("D3: sweeping >= 90% of a 100+ USDC balance that never moved >= 10% fires", () => {

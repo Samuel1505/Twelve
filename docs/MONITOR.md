@@ -109,8 +109,18 @@ apps/monitor/src/
 ```
 
 ## 9. Replay results (fill in during Phase 4)
+
+Mainnet replay `apps/monitor/src/replay.ts --chain 5042 --from 0` (Infura). **Partial: blocks 0 – 12,898,848 of 23,783,527
+(54.2%)** — 862,018 Transfer logs, 450,282 movements, 19,505 profiled addresses. Nearly all activity sits in the last
+~45% of history (7–23 logs/block); under this key's sustained-throughput limits (HTTP 429 on any call after minutes of
+load) the remainder is ~10–15 h of wall clock, beyond this session's background limit. Resume: same command (state file).
+Blocks/day assumes ~0.5 s blocks (172,800/day); the dense part replayed so far is ~0.9M blocks ≈ 5.2 days.
+
 | Detector | Blocks replayed | Alerts | Triaged TP | Triaged FP | Notes |
 |---|---|---|---|---|---|
-| D1 | | | | | |
-| D2 | | | | | |
-| D3 | | | | | |
+| D1 | 0 – 12.90M | 0 | – | – | — |
+| D2 | 0 – 12.90M | 12 (pre-fix) → 0 | 0 | 12 | All native outflows of 40–9,900 raw from Uniswap v4 `PoolManager` (`0x8366a39C…0951`) and two routers in the same txs: settlement/rounding dust. Fix: ignore outflows < 10^4 raw (a 10^12 underpay of any ≥ 0.01 USDC payment is ≥ 10^4 raw; same floor as D1). |
+| D3 | 0 – 12.90M | 3 (≈ 0.6/day) | 0 drains | 3 lifecycle sweeps | `UniswapV2Pair` `0xC7c16535…1a86` (final LP withdrawal), `DyorPumpToken` `0x4C9D1c8F…0000` (bonding-curve graduation), "ArcPumpSwap LPs" `0x469F8a1B…adDd`. Within the "handful per day" target; kept as specified ("possible drain", MEDIUM). |
+| PAIRING | 0 – 12.90M | 0 after ARC_LEDGER §2.2 no-op classes | – | – | 769 pre-fix in a 20k-block head sample were all zero-value / self ERC-20 transfers. |
+
+Testnet exit runs (D1 latency, D4 revoke): `docs/evidence/phase4-testnet-exits.md`.
