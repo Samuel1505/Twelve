@@ -33,7 +33,7 @@ function parseArgs(argv: string[]): Args {
 }
 
 type Saved = { next: string; to: string; profiles: [string, unknown][]; alerts: Alert[]; counts: Record<string, number>;
-  logs: number; movements: number; startedAt: number };
+  logs: number; movements: number; startedAt: number; density?: number };
 
 const ser = (v: unknown) => JSON.stringify(v, (_k, x) => (typeof x === "bigint" ? `${x}n` : x));
 const de = <T>(s: string): T => JSON.parse(s, (_k, x) => (typeof x === "string" && /^-?\d+n$/.test(x) ? BigInt(x.slice(0, -1)) : x));
@@ -61,6 +61,7 @@ async function main(): Promise<void> {
   let counts: Record<string, number> = {};
   let nLogs = 0;
   let nMov = 0;
+  let savedDensity = 0;
   const statePath = `${a.out}.state`;
   if (existsSync(statePath)) {
     const s = de<Saved>(readFileSync(statePath, "utf8"));
@@ -70,18 +71,21 @@ async function main(): Promise<void> {
     ({ alerts, counts } = s);
     nLogs = s.logs;
     nMov = s.movements;
+    savedDensity = s.density ?? 0;
     console.error(`resuming at block ${next} (${state.profiles.size} profiles)`);
   }
   const t0 = Date.now();
   const filter = logFilter(registry, new Set());
   const inflight: Promise<{ from: bigint; to: bigint; logs: Awaited<ReturnType<typeof getLogsAdaptive>> }>[] = [];
   let cursor = next;
+  let progressAt = Date.now();
   // adaptive window: aim for ~TARGET_LOGS per request from the observed density. Dense history (7–23 logs/block near
   // block 12.87M) would otherwise need many sequential 20k-result splits per 10k-block window under rate limiting.
   const TARGET_LOGS = 8_000;
-  let density = 0; // logs per block, exponential moving average
+  // resumes with the saved density: after a restart in dense history, a full 10k-block first window can hold 270k+ logs
+  let density = savedDensity; // logs per block, exponential moving average
   const windowSize = (): bigint => {
-    if (density <= 0) return a.window;
+    if (density <= 0) return a.window < 1_000n ? a.window : 1_000n; // unknown density: start small, adapt after one window
     const w = BigInt(Math.max(100, Math.min(Number(a.window), Math.floor(TARGET_LOGS / density))));
     return w;
   };
@@ -91,13 +95,13 @@ async function main(): Promise<void> {
       const size = windowSize();
       const e = f + size - 1n > to ? to : f + size - 1n;
       cursor = e + 1n;
-      inflight.push(getLogsAdaptive(client, filter, f, e).then((logs) => ({ from: f, to: e, logs })));
+      inflight.push(getLogsAdaptive(client, filter, f, e, 0, () => { progressAt = Date.now(); })
+        .then((logs) => ({ from: f, to: e, logs })));
     }
   };
   let windows = 0;
   let savedAt = Date.now();
   // watchdog: a replay that makes no progress for 15 minutes exits (resumable from the state file) instead of idling
-  let progressAt = Date.now();
   const watchdog = setInterval(() => {
     if (Date.now() - progressAt > 15 * 60_000) {
       console.error(`watchdog: no progress for 15 min at block ${next}; exiting (resume with the same command)`);
@@ -144,7 +148,7 @@ async function main(): Promise<void> {
       if (save) {
         savedAt = Date.now();
         writeFileSync(statePath, ser({ next: next.toString(), to: to.toString(), profiles: [...state.profiles],
-          alerts, counts, logs: nLogs, movements: nMov, startedAt: t0 } satisfies Saved));
+          alerts, counts, logs: nLogs, movements: nMov, startedAt: t0, density } satisfies Saved));
       }
     }
   }

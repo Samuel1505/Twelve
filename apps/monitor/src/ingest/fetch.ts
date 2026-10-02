@@ -37,12 +37,14 @@ export function errorText(e: unknown): string {
 }
 
 export async function getLogsAdaptive(client: PublicClient, filter: LogFilter, from: bigint, to: bigint,
-  attempt = 0): Promise<RpcLog[]> {
+  attempt = 0, onChunk?: () => void): Promise<RpcLog[]> {
   try {
-    return (await deadline(client.request({
+    const logs = (await deadline(client.request({
       method: "eth_getLogs",
       params: [{ ...filter, fromBlock: `0x${from.toString(16)}`, toBlock: `0x${to.toString(16)}` }] as never,
     }, { retryCount: 1 }), WINDOW_DEADLINE_MS)) as unknown as RpcLog[];
+    onChunk?.(); // a completed sub-request is progress, even inside a huge split window
+    return logs;
   } catch (e) {
     const msg = errorText(e);
     const limited = RATE_LIMITED.test(msg);
@@ -53,15 +55,15 @@ export async function getLogsAdaptive(client: PublicClient, filter: LogFilter, f
         const end = BigInt(hint[2] ?? "0");
         if (end >= from && end < to) mid = end;
       }
-      const left = await getLogsAdaptive(client, filter, from, mid);
-      const right = await getLogsAdaptive(client, filter, mid + 1n, to);
+      const left = await getLogsAdaptive(client, filter, from, mid, 0, onChunk);
+      const right = await getLogsAdaptive(client, filter, mid + 1n, to, 0, onChunk);
       return [...left, ...right];
     }
     // rate limiting is not a size problem: back off much longer and try more often (Infura 429 in dense ranges)
     if (attempt < (limited ? 12 : 5)) {
       const base = limited ? 2_000 : 400;
       await new Promise((r) => setTimeout(r, Math.min(60_000, base * 2 ** attempt) + Math.random() * 500));
-      return getLogsAdaptive(client, filter, from, to, attempt + 1);
+      return getLogsAdaptive(client, filter, from, to, attempt + 1, onChunk);
     }
     throw new Error(`eth_getLogs [${from}, ${to}] failed: ${msg.slice(0, 400)}`);
   }
