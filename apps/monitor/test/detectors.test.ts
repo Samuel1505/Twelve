@@ -108,6 +108,16 @@ test("D2 requires the 10^12 signature (ADR-021): mainnet replay cases", () => {
   }
 });
 
+test("D2 goes quiet for routine dust senders (mainnet: UniversalRouter dust-swap spam)", () => {
+  let p = history(emptyProfile(C, 1n), 200, parseUsdc18("30"));
+  const dust = 230_401_765n; // ×10^12 = "230 USDC": inside the signature decade of a 30 USDC median
+  assert.equal(processBatch(state({ profiles: new Map([[C, p]]) }), [sys(1, C, USER, dust)])
+    .alerts.filter((a) => a.detector === "D2").length, 1);
+  p = history(p, 20, dust); // the same size has now been sent 20 times
+  assert.equal(processBatch(state({ profiles: new Map([[C, p]]) }), [sys(2, C, USER, dust)])
+    .alerts.filter((a) => a.detector === "D2").length, 0);
+});
+
 test("D3: sweeping >= 90% of a 100+ USDC balance that never moved >= 10% fires", () => {
   let p = history(emptyProfile(C, 1n), 25, parseUsdc18("1"));
   p = { ...p, balance18: parseUsdc18("1000"), maxOutFrac: 0.05 };

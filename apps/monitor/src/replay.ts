@@ -100,6 +100,7 @@ async function main(): Promise<void> {
     }
   };
   let windows = 0;
+  const cooled = new Set<string>();
   let savedAt = Date.now();
   // watchdog: a replay that makes no progress for 15 minutes exits (resumable from the state file) instead of idling
   const watchdog = setInterval(() => {
@@ -130,6 +131,12 @@ async function main(): Promise<void> {
       nMov += r.movements.length;
       const kept = await onlyContracts(r.alerts, (x) => accounts.resolve(x), (x) => accounts.map.get(x));
       for (const al of kept) {
+        // count what production would deliver: one MEDIUM/INFO per detector per address per day (MONITOR §6)
+        if ((al.severity === "MEDIUM" || al.severity === "INFO") && al.address && al.block !== null) {
+          const k = `${al.detector}:${al.address}:${al.block / BLOCKS_PER_DAY}`;
+          if (cooled.has(k)) continue;
+          cooled.add(k);
+        }
         counts[al.detector] = (counts[al.detector] ?? 0) + 1;
         if (alerts.length < 5000 && !alerts.some((x) => x.dedupeKey === al.dedupeKey)) alerts.push(al);
       }

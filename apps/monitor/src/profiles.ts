@@ -42,6 +42,16 @@ export function medianOut(p: Profile): Usdc18 | null {
   return null;
 }
 
+/** Number of outflows within ±`orders` decades of `amount`'s bucket. */
+export function countNear(p: Profile, amount: bigint, orders: number): number {
+  const c = bucketOf(amount);
+  let m = 0;
+  for (let b = Math.max(0, c - orders); b <= Math.min(BUCKETS - 1, c + orders); b++) {
+    m += (p.hist.native[b] ?? 0) + (p.hist.erc20[b] ?? 0);
+  }
+  return m;
+}
+
 /** Fraction of all outflows within ±`orders` decades of `amount`'s bucket (D2 suppression). */
 export function massNear(p: Profile, amount: bigint, orders: number): number {
   const n = nOut(p);

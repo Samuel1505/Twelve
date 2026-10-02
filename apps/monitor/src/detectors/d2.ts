@@ -5,7 +5,7 @@
 // 10^4 raw are ignored: a 10^12 underpay of any payment ≥ 0.01 USDC lands at ≥ 10^4 raw, while sub-10^4 outflows are
 // rounding dust (mainnet replay: all 12 pre-floor D2 alerts were Uniswap v4 PoolManager / router settlement dust).
 import { USDC_SCALE, formatUsdc18, usdc18 } from "@twelve/shared";
-import { massNear, medianOut, nOut } from "../profiles.js";
+import { countNear, massNear, medianOut, nOut } from "../profiles.js";
 import type { Alert } from "../types.js";
 import { contractsIn, type TxContext } from "./context.js";
 import { D1_MIN_RAW } from "./d1.js";
@@ -16,6 +16,9 @@ export const D2_SUPPRESS_MASS = 0.05;
 /** The 10^12 signature (ADR-021): the dust outflow scaled up by 10^12 must land within one order of magnitude of the
  *  contract's median payout — i.e. it is a typical payment expressed in the wrong view, not arbitrary rounding dust. */
 export const D2_SIGNATURE_ORDERS = 10n;
+/** A contract that has already sent this many outflows of about this size (±1 decade) does it routinely: quiet.
+ *  Mainnet replay: UniversalRouter dust-swap spam (600 alerts) vs a fixed-fee underpay that occurred 3 times. */
+export const D2_ROUTINE_COUNT = 20;
 
 export function d2(ctx: TxContext): Alert[] {
   const out: Alert[] = [];
@@ -28,6 +31,7 @@ export function d2(ctx: TxContext): Alert[] {
       if (m.from !== c || m.iface !== "native" || m.amount18 < D1_MIN_RAW) continue;
       if (m.amount18 * D2_COLLAPSE > med) continue;
       if (massNear(p, m.amount18, 3) >= D2_SUPPRESS_MASS) continue;
+      if (countNear(p, m.amount18, 1) >= D2_ROUTINE_COUNT) continue;
       const asIntended = m.amount18 * USDC_SCALE; // what the payout would be had the raw value been 6-dec
       if (asIntended * D2_SIGNATURE_ORDERS < med || asIntended > med * D2_SIGNATURE_ORDERS) continue;
       out.push({
