@@ -180,3 +180,15 @@ test("private targets: status, scan and report endpoints withhold the report unl
   assert.equal(st.report, null);
   assert.equal(st.withheld, true);
 });
+
+test("behind a trusted proxy, scan rate limits are per forwarded client IP", async () => {
+  const a = buildServer({
+    db, bus: new ScanBus(), queue: { enqueue: async () => undefined }, clients: { 5042002: chain.pub }, registry: null,
+    attester: null, adminToken: null, scanRatePerMin: 1, trustProxy: true,
+  });
+  const post = (ip: string) => a.inject({ method: "POST", url: "/v1/scans", remoteAddress: "127.0.0.1",
+    headers: { "x-forwarded-for": ip }, payload: { chainId: 5042002, address: chain.registry } });
+  assert.equal((await post("203.0.113.1")).statusCode, 202);
+  assert.equal((await post("203.0.113.1")).statusCode, 429);
+  assert.equal((await post("203.0.113.2")).statusCode, 202); // a different visitor has its own bucket
+});

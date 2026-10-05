@@ -47,12 +47,13 @@ async function main(): Promise<void> {
     db, bus, clients, attester, registry: env.REGISTRY_ADDRESS ?? null, adminToken: env.ADMIN_TOKEN ?? null,
     scanRatePerMin: env.SCAN_RATE_PER_MIN,
     webOrigins: env.WEB_ORIGIN,
+    trustProxy: env.TRUST_PROXY,
     sources: blockscoutSources(env.BLOCKSCOUT_API_KEY),
     disclosed: env.DISCLOSED_ADDRESSES,
     privateTargets: env.PRIVATE_TARGETS,
     queue: { enqueue: async (scanId) => void (await boss.send(QUEUE, { scanId }, { retryLimit: 2, retryBackoff: true })) },
   });
-  await app.listen({ port: env.API_PORT, host: "0.0.0.0" });
+  await app.listen({ port: env.API_PORT, host: env.API_HOST });
   console.log(JSON.stringify({ level: "info", msg: "api listening", port: env.API_PORT, chains: Object.keys(clients),
     attester: attester?.address ?? null, registry: env.REGISTRY_ADDRESS ?? null }));
 }

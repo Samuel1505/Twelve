@@ -1,0 +1,36 @@
+# Vercel builds only apps/web (Root Directory). Upload just what that build reads: the workspace manifests, the
+# shared package, and the repo files the static pages render (corpus metrics/cases, docs tables, demo + fixture sources).
+/*
+!/package.json
+!/pnpm-lock.yaml
+!/pnpm-workspace.yaml
+!/tsconfig.base.json
+!/apps
+/apps/*
+!/apps/web
+!/apps/api
+/apps/api/*
+!/apps/api/package.json
+!/apps/monitor
+/apps/monitor/*
+!/apps/monitor/package.json
+/apps/web/.next
+/apps/web/node_modules
+!/packages
+/packages/*
+!/packages/shared
+/packages/shared/node_modules
+!/packages/db
+/packages/db/*
+!/packages/db/package.json
+!/scripts
+/scripts/*
+!/scripts/phase0
+/scripts/phase0/*
+!/scripts/phase0/package.json
+!/corpus
+!/docs
+!/contracts
+/contracts/*
+!/contracts/src
+!/contracts/fixtures

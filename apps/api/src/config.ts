@@ -16,6 +16,10 @@ export const Env = z.object({
   ATTESTER_MIN_BALANCE: z.string().default("0.05").transform((s): Usdc18 => parseUsdc18(s)),
   ADMIN_TOKEN: z.string().min(16).optional(),
   API_PORT: z.coerce.number().int().default(8787),
+  // 127.0.0.1 when published through a tunnel, so the tunnel is the only way in
+  API_HOST: z.string().default("0.0.0.0"),
+  // "1" only behind a proxy you control (Cloudflare Tunnel): per-IP rate limits then use X-Forwarded-For
+  TRUST_PROXY: z.enum(["0", "1"]).default("0").transform((v) => v === "1"),
   ANALYZER_CMD: z.string().default("uv run --project analyzer twelve"),
   ANALYZER_CWD: z.string().default("../.."),
   SCAN_RATE_PER_MIN: z.coerce.number().int().default(10),

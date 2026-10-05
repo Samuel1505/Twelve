@@ -126,3 +126,16 @@ with detector/severity/kind/ratio and an hour-rounded time; admin token sees eve
 **Consequences.** The web shows withheld alerts as "third-party contract, details withheld pending disclosure", which
 is honest and proves live coverage. `/v1/status/:address` still returns that address's alerts: whoever asks already
 knows it, and the analyzer report for a verified contract is public anyway.
+
+### ADR-023 — Interim hosting: web on Vercel, services on the owner's Mac behind a Cloudflare quick tunnel (ACCEPTED, Phase 5)
+**Context.** ARCHITECTURE §5 targets Fly.io + managed Postgres. No payment card is available, and the monitor writes
+~2.2M mainnet logs (~1.4 GB) per day, beyond free managed-Postgres tiers.
+**Options.** (a) Fly/Railway (needs a card). (b) A free container host with an in-container Postgres and log retention
+(changes MONITOR's "logs_raw is truth"; resets on restart). (c) Vercel Hobby for the web; api + monitor + Postgres on the
+owner's Mac, published by `cloudflared tunnel --url` (no account, no card).
+**Decision.** (c), via `scripts/go-live.sh` (start/status/stop). The API binds 127.0.0.1 with `TRUST_PROXY=1` so
+rate limits use the visitor's IP from the tunnel; the monitor process never receives the attester key (I12).
+**Consequences.** The site is up only while the Mac is awake and online (the script holds a `caffeinate` assertion).
+A quick tunnel's URL changes when cloudflared restarts; the script then updates `NEXT_PUBLIC_API_URL` on Vercel and
+redeploys. Public scans spend the attester's USDC (~0.0025 each, rate-limited per IP). `infra/` (Fly) remains the
+path once hosting is funded.

@@ -27,6 +27,7 @@ export type ServerDeps = {
   adminToken: string | null;
   scanRatePerMin: number;
   webOrigins?: string[]; // browser origins allowed to call the API (apps/web)
+  trustProxy?: boolean; // behind Cloudflare Tunnel: req.ip from X-Forwarded-For, so rate limits are per visitor
   sources?: SourceFetcher; // verified source for finding excerpts; absent ⇒ /v1/source answers 503
   disclosed?: ReadonlySet<string>; // lowercase addresses whose alerts the public feed may name (ADR-022)
   privateTargets?: ReadonlySet<string>; // lowercase; reports and alerts withheld from public endpoints (§7.4)
@@ -104,7 +105,7 @@ const sseCors = (h: Record<string, unknown>): Record<string, string> =>
   Object.fromEntries(Object.entries(h).filter(([k]) => k.startsWith("access-control-") || k === "vary").map(([k, v]) => [k, String(v)]));
 
 export function buildServer(d: ServerDeps): FastifyInstance {
-  const app = Fastify({ logger: false });
+  const app = Fastify({ logger: false, trustProxy: d.trustProxy ?? false });
   const isAdmin = (h: string | undefined) => !!d.adminToken && h === `Bearer ${d.adminToken}`;
   const hidden = (address: string | null | undefined, auth: string | undefined) =>
     !!address && !!d.privateTargets?.has(address.toLowerCase()) && !isAdmin(auth);

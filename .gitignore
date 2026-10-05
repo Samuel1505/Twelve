@@ -26,3 +26,8 @@ apps/monitor/.replay/
 .next/
 next-env.d.ts
 *.tsbuildinfo
+.vercel
+.env*
+
+# go-live runtime state (pids, logs, tunnel url)
+.live/
