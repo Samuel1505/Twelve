@@ -14,7 +14,11 @@ export const STAGES = [
 
 export const stageIndex = (state: string) => STAGES.findIndex((s) => s.id === state);
 
-export type Outcome = { title: string; body: string; tone: "neutral" | "warn" | "bad"; monitorOnly?: boolean; retry?: boolean };
+export type Outcome = {
+  title: string; body: string; tone: "neutral" | "warn" | "bad"; monitorOnly?: boolean; retry?: boolean;
+  /** The analyzer's exact reason, shown in full as a technical note under the plain sentence. */
+  detail?: string;
+};
 
 /** Terminal failures. `code` is the scan state, or the error code where it is more specific (CODE_CHANGED). */
 export function outcomeFor(state: string, code?: string, message?: string): Outcome | null {
@@ -34,7 +38,11 @@ export function outcomeFor(state: string, code?: string, message?: string): Outc
     case "COMPILE_FAILED":
       return { title: "Couldn't recompile the source", body: "The verified source didn't compile with the compiler and settings recorded on the explorer, so it can't be matched to the chain. No report was made.", tone: "warn", monitorOnly: true };
     case "UNSUPPORTED":
-      return { title: "Not something the analyzer can cover yet", body: `${message ? `${sentence(message)} ` : ""}Rather than guess, Twelve reports nothing for this contract. The live monitor still watches every USDC movement in and out of it.`, tone: "neutral", monitorOnly: true };
+      return {
+        title: "Twelve can't analyze this contract reliably",
+        body: "Something in its verified source trips up the analyzer, so instead of guessing, Twelve doesn't report on it. That says nothing good or bad about the contract. The live monitor still watches every USDC movement in and out of it.",
+        tone: "neutral", monitorOnly: true, ...(message ? { detail: tidy(message) } : {}),
+      };
     case "FETCH_FAILED":
       return { title: "The explorer didn't answer", body: "Twelve couldn't fetch the verified source in time. That's usually temporary; try again in a minute.", tone: "warn", retry: true };
     case "ANALYZER_ERROR":
@@ -51,9 +59,10 @@ export function outcomeFor(state: string, code?: string, message?: string): Outc
   }
 }
 
-const sentence = (s: string) => {
-  const t = s.trim().replace(/\s+/g, " ").slice(0, 200);
-  return /[.!?]$/.test(t) ? t.charAt(0).toUpperCase() + t.slice(1) : `${t.charAt(0).toUpperCase()}${t.slice(1)}.`;
+/** Whole analyzer message, whitespace normalised, first letter capitalised, never cut mid-sentence. */
+const tidy = (s: string) => {
+  const t = s.trim().replace(/\s+/g, " ");
+  return t.charAt(0).toUpperCase() + t.slice(1);
 };
 
 export function apiErrorSentence(e: { kind: string; status?: number; message?: string }): string {

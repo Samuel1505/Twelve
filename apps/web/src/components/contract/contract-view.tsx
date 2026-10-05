@@ -98,7 +98,7 @@ export function ContractView({ address, initial }: { address: string; initial: A
           action={<Button onClick={() => (status ? start() : refresh())}>Try again</Button>} />}
         {running && <ScanProgress state={scan.state} startedAt={scan.startedAt} />}
         {outcome && (
-          <Notice title={outcome.title} body={outcome.body} tone={outcome.tone}
+          <Notice title={outcome.title} body={outcome.body} tone={outcome.tone} detail={outcome.detail}
             action={outcome.retry ? <Button onClick={() => void start()}>Scan again</Button> : undefined}
             footer={outcome.monitorOnly ? <>The monitor&apos;s alerts for this address are listed below.</> : undefined} />
         )}
@@ -210,8 +210,9 @@ function Verdict({ status }: { status: Status }) {
   );
 }
 
-function Notice({ title, body, tone, action, footer }: {
+function Notice({ title, body, tone, action, footer, detail }: {
   title: string; body: string; tone: "neutral" | "warn" | "bad"; action?: React.ReactNode; footer?: React.ReactNode;
+  detail?: string | undefined;
 }) {
   return (
     <div className={cn("rounded-2xl border px-5 py-5",
@@ -220,6 +221,11 @@ function Notice({ title, body, tone, action, footer }: {
         <div className="max-w-[64ch]">
           <h2 className="text-[16px] font-semibold text-fg">{title}</h2>
           <p className="mt-1.5 text-[14px] leading-relaxed text-muted">{body}</p>
+          {detail && (
+            <p className="mt-3 border-l-2 border-line-strong pl-3 text-[12.5px] leading-relaxed text-subtle">
+              <span className="text-muted">Analyzer detail: </span>{detail}
+            </p>
+          )}
           {footer && <p className="mt-2 text-[13px] text-subtle">{footer}</p>}
         </div>
         {action}
