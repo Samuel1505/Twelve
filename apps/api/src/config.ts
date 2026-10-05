@@ -22,6 +22,7 @@ export const Env = z.object({
   TRUST_PROXY: z.enum(["0", "1"]).default("0").transform((v) => v === "1"),
   ANALYZER_CMD: z.string().default("uv run --project analyzer twelve"),
   ANALYZER_CWD: z.string().default("../.."),
+  ANALYZER_TIMEOUT_MS: z.coerce.number().int().positive().default(180_000),
   SCAN_RATE_PER_MIN: z.coerce.number().int().default(10),
   DISCLOSED_ADDRESSES: z.string().default("").transform((s) => new Set(s.split(",").map((x) => x.trim().toLowerCase()).filter(Boolean))),
   PRIVATE_TARGETS: z.string().default("").transform((s) => new Set(s.split(",").map((x) => x.trim().toLowerCase()).filter(Boolean))),

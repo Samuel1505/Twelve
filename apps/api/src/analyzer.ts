@@ -24,7 +24,7 @@ export interface Analyzer {
 }
 
 function run(cmd: string, args: string[], cwd: string, onStderrLine: (l: string) => void, timeoutMs: number):
-  Promise<{ code: number | null; stdout: string; stderrTail: string }> {
+  Promise<{ code: number | null; stdout: string; stderrTail: string; timedOut: boolean }> {
   const [bin, ...pre] = cmd.split(" ").filter(Boolean);
   if (!bin) throw new Error("ANALYZER_CMD is empty");
   return new Promise((done) => {
@@ -32,7 +32,11 @@ function run(cmd: string, args: string[], cwd: string, onStderrLine: (l: string)
     let stdout = "";
     let stderrBuf = "";
     let tail: string[] = [];
-    const timer = setTimeout(() => child.kill("SIGKILL"), timeoutMs);
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      child.kill("SIGKILL");
+    }, timeoutMs);
     child.stdout.on("data", (d: Buffer) => (stdout += d.toString()));
     child.stderr.on("data", (d: Buffer) => {
       stderrBuf += d.toString();
@@ -46,12 +50,12 @@ function run(cmd: string, args: string[], cwd: string, onStderrLine: (l: string)
     });
     child.on("close", (code) => {
       clearTimeout(timer);
-      done({ code, stdout, stderrTail: tail.join("\n") });
+      done({ code, stdout, stderrTail: tail.join("\n"), timedOut });
     });
   });
 }
 
-export function cliAnalyzer(cmd: string, cwd: string, timeoutMs = 10 * 60_000): Analyzer {
+export function cliAnalyzer(cmd: string, cwd: string, timeoutMs = 3 * 60_000): Analyzer {
   const root = resolve(cwd);
   let cached: ToolInfo | null = null;
   return {
@@ -71,6 +75,8 @@ export function cliAnalyzer(cmd: string, cwd: string, timeoutMs = 10 * 60_000): 
             /* not a progress line (compiler warnings etc.) */
           }
         }, timeoutMs);
+      // one worker serves every visitor: a runaway analysis must not hold the queue (never attested, never partial)
+      if (r.timedOut) return err({ code: "TIMEOUT", message: `analysis exceeded ${Math.round(timeoutMs / 1000)} s` });
       let parsed: z.infer<typeof AnalyzerOutput>;
       try {
         parsed = AnalyzerOutput.parse(JSON.parse(r.stdout));

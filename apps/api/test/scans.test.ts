@@ -184,3 +184,16 @@ test("private target (CORPUS_AND_TESTING §7.4): scanned and stored, never attes
     args: [d.attester!.address, target] });
   assert.equal(status, 0);
 });
+
+test("analyzer timeout (or any unknown error code) ends the scan terminally, never attested", async () => {
+  const target = await chain.deploy(initCodeFor(23));
+  const id = await newScan(target);
+  const an = fakeAnalyzer(() => "FINDINGS");
+  const timingOut: Analyzer = { ...an, tool: an.tool.bind(an),
+    scan: async () => ({ ok: false, error: { code: "TIMEOUT", message: "analysis exceeded 180 s" } }) };
+  await processScan(deps(timingOut), id);
+  const scan = (await getScan(db, id))!;
+  assert.equal(scan.state, "ANALYZER_ERROR");
+  assert.equal((scan.error as { code: string }).code, "TIMEOUT");
+  assert.equal(scan.attest_tx, null);
+});

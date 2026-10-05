@@ -31,7 +31,7 @@ export function outcomeFor(state: string, code?: string, message?: string): Outc
     case "COMPILE_FAILED":
       return { title: "Couldn't recompile the source", body: "The verified source didn't compile with the compiler and settings recorded on the explorer, so it can't be matched to the chain. No report was made.", tone: "warn", monitorOnly: true };
     case "UNSUPPORTED":
-      return { title: "Not something the analyzer covers yet", body: `${message ? `${sentence(message)} ` : ""}Version 1 analyzes Solidity contracts and standard proxies. Vyper, delegated EOAs (EIP-7702) and assembly-heavy value paths are out of scope; the live monitor still covers them.`, tone: "neutral", monitorOnly: true };
+      return { title: "Not something the analyzer can cover yet", body: `${message ? `${sentence(message)} ` : ""}Rather than guess, Twelve reports nothing for this contract. The live monitor still watches every USDC movement in and out of it.`, tone: "neutral", monitorOnly: true };
     case "FETCH_FAILED":
       return { title: "The explorer didn't answer", body: "Twelve couldn't fetch the verified source in time. That's usually temporary; try again in a minute.", tone: "warn", retry: true };
     case "ANALYZER_ERROR":

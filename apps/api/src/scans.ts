@@ -8,7 +8,7 @@ import type { AttestRequest, Attester } from "./attester.js";
 import { codehashOf, currentImplementation } from "./chain.js";
 import { CHAINS, type ChainId } from "./config.js";
 import {
-  attestedReport, findReport, getReport, getScan, insertReport, setState, upsertAttestation, type Db,
+  TERMINAL, attestedReport, findReport, getReport, getScan, insertReport, setState, upsertAttestation, type Db,
 } from "./db.js";
 import type { ScanBus } from "./events.js";
 import { redactDeep } from "./redact.js";
@@ -109,7 +109,8 @@ export async function processScan(d: ScanDeps, scanId: string): Promise<void> {
     });
     await stages;
     if (!res.ok) {
-      const code = res.error.code === "CONFIG" || res.error.code === "CHAIN_MISMATCH" ? "CONFIG" : res.error.code;
+      const code = res.error.code === "CONFIG" || res.error.code === "CHAIN_MISMATCH" ? "CONFIG"
+        : TERMINAL.has(res.error.code) ? res.error.code : "ANALYZER_ERROR"; // e.g. TIMEOUT: terminal state, error.code says why
       await transition(d, scanId, code, { codehash, error: res.error });
       return;
     }

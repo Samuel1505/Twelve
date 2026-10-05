@@ -32,7 +32,7 @@ async function main(): Promise<void> {
     ? makeAttester({ privateKey: env.ATTESTER_PRIVATE_KEY, registry: env.REGISTRY_ADDRESS, minBalance: env.ATTESTER_MIN_BALANCE, clients: rpc })
     : null;
   const bus = new ScanBus();
-  const analyzer = cliAnalyzer(env.ANALYZER_CMD, env.ANALYZER_CWD);
+  const analyzer = cliAnalyzer(env.ANALYZER_CMD, env.ANALYZER_CWD, env.ANALYZER_TIMEOUT_MS);
 
   const boss = new PgBoss(env.DATABASE_URL);
   boss.on("error", (e) => console.error(JSON.stringify({ level: "error", msg: "pg-boss", error: redact(String(e)) })));
