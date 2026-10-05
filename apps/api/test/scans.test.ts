@@ -197,3 +197,24 @@ test("analyzer timeout (or any unknown error code) ends the scan terminally, nev
   assert.equal((scan.error as { code: string }).code, "TIMEOUT");
   assert.equal(scan.attest_tx, null);
 });
+
+test("RPC failure while resolving ends the scan as FETCH_FAILED/RPC instead of leaving it in RESOLVING", async () => {
+  const { HttpRequestError } = await import("viem");
+  const target = await chain.deploy(initCodeFor(24));
+  const id = await newScan(target);
+  const failing = new Proxy(chain.pub, {
+    get(t, k, r) {
+      if (k === "getCode" || k === "request") {
+        return async () => { throw new HttpRequestError({ url: "https://rpc.example/v3/secret", status: 429, details: "Too Many Requests" }); };
+      }
+      return Reflect.get(t, k, r);
+    },
+  });
+  await processScan({ ...deps(fakeAnalyzer(() => "CLEAN")), clients: { 5042002: failing } }, id);
+  const scan = (await getScan(db, id))!;
+  assert.equal(scan.state, "FETCH_FAILED");
+  const err = scan.error as { code: string; rateLimited: boolean; message: string };
+  assert.equal(err.code, "RPC");
+  assert.equal(err.rateLimited, true);
+  assert.ok(!JSON.stringify(scan.error).includes("secret"));
+});

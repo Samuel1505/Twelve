@@ -1,6 +1,6 @@
 // Scan state machine (docs/ARCHITECTURE.md §3). One job = one scan; every transition writes scan_events and
 // is published to SSE subscribers. Reports that did not match on-chain code never exist (I5), so never attest.
-import { getAddress, type Hex, type PublicClient } from "viem";
+import { BaseError, getAddress, type Hex, type PublicClient } from "viem";
 import { VERDICT_CODE, canonicalJson, reportHash, type ReportCore } from "@twelve/shared";
 import type { Analyzer } from "./analyzer.js";
 import { toolVersionString } from "./analyzer.js";
@@ -58,8 +58,22 @@ export function attestRequestOf(core: ReportCore, hash: Hex, toolVersion: string
   };
 }
 
-/** Runs one scan to a terminal state. Throws only on programmer/DB errors (pg-boss retries those). */
+/** Runs one scan to a terminal state. Throws only on programmer/DB errors (pg-boss retries those). Chain reads that
+ * fail (provider 429, timeouts) end the scan as FETCH_FAILED/RPC; before this, the job failed in pg-boss while the
+ * scan row stayed in RESOLVING and the page spun forever. */
 export async function processScan(d: ScanDeps, scanId: string): Promise<void> {
+  try {
+    await runScan(d, scanId);
+  } catch (e) {
+    if (!(e instanceof BaseError)) throw e;
+    const rateLimited = /429|too many requests|rate.?limit/i.test(`${e.shortMessage} ${e.details ?? ""}`);
+    await transition(d, scanId, "FETCH_FAILED", {
+      error: { code: "RPC", rateLimited, message: e.shortMessage },
+    });
+  }
+}
+
+async function runScan(d: ScanDeps, scanId: string): Promise<void> {
   const scan = await getScan(d.db, scanId);
   if (!scan) return;
   const chainId = scan.chain_id as ChainId;

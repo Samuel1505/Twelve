@@ -8,6 +8,7 @@ import { d4 } from "./detectors/d4.js";
 import { onlyContracts, processBatch, type EngineState } from "./engine.js";
 import { getLogsAdaptive } from "./ingest/fetch.js";
 import type { Revoker } from "./revoker.js";
+import { errorText } from "./ingest/fetch.js";
 import { applyRegistry, opsAlert, persistWindow, proxiesOf, type Checkpoint } from "./store.js";
 import type { Alert } from "./types.js";
 
@@ -97,11 +98,29 @@ export async function step(d: FollowDeps, cp: Checkpoint): Promise<{ cp: Checkpo
   return { cp: newCp, head, alerts: inserted.length };
 }
 
+/** Only a continuity violation stops ingestion (I9). Provider errors (429, timeouts, resets) are transient: retry. */
+export const isFatal = (e: unknown): boolean => e instanceof ContinuityError;
+
+/** 1 s, 2 s, 4 s … capped at 60 s. */
+export const retryDelayMs = (attempt: number): number => Math.min(60_000, 1000 * 2 ** Math.max(0, attempt - 1));
+
 export async function follow(d: FollowDeps, start: Checkpoint, pollMs: number, signal?: AbortSignal): Promise<never> {
   let cp = start;
+  let failures = 0;
   for (;;) {
     if (signal?.aborted) throw new Error("aborted");
-    const r = await step(d, cp);
+    let r: Awaited<ReturnType<typeof step>>;
+    try {
+      r = await step(d, cp);
+      failures = 0;
+    } catch (e) {
+      if (isFatal(e)) throw e;
+      failures += 1;
+      const wait = retryDelayMs(failures);
+      d.log("window failed, retrying", { from: (cp.block + 1n).toString(), attempt: failures, waitMs: wait, error: errorText(e) });
+      await new Promise((res) => setTimeout(res, wait));
+      continue;
+    }
     if (r.cp.block !== cp.block && (r.alerts || r.cp.block % 1000n === 0n || r.head - r.cp.block < 2n)) {
       d.log("window", { to: r.cp.block.toString(), head: r.head.toString(), lag: (r.head - r.cp.block).toString(), alerts: r.alerts });
     }

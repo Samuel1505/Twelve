@@ -15,17 +15,23 @@ PORT=8787
 V() { npx -y vercel@latest "$@" 2>&1 | grep -v "npm notice"; }
 
 stop() {
-  for n in tunnel caffeinate monitor api; do
-    if [[ -f "$LIVE/$n.pid" ]]; then
-      kill "$(cat "$LIVE/$n.pid")" 2>/dev/null || true
-      rm -f "$LIVE/$n.pid"
-    fi
-  done
-  pkill -f "cloudflared tunnel --url http://127.0.0.1:$PORT" 2>/dev/null || true
+  for n in tunnel monitor api; do pkill -f "$(pattern $n)" 2>/dev/null || true; done
+  pkill -f "caffeinate -ims -w" 2>/dev/null || true
+  rm -f "$LIVE"/*.pid
   echo "stopped api, monitor, tunnel"
 }
 
-alive() { [[ -f "$LIVE/$1.pid" ]] && kill -0 "$(cat "$LIVE/$1.pid")" 2>/dev/null; }
+# liveness by the real process (pid files can point at short-lived wrappers)
+pattern() {
+  case $1 in
+    api) echo "src/index.ts twelve-role=api" ;;
+    monitor) echo "src/index.ts twelve-role=monitor" ;;
+    tunnel) echo "cloudflared tunnel --no-autoupdate --url http://127.0.0.1:$PORT" ;;
+  esac
+}
+alive() { pgrep -f "$(pattern "$1")" >/dev/null 2>&1; }
+# start detached in a new session, so the services outlive the shell (and tool runners) that launched them
+detach() { nohup python3 -c 'import os, sys; os.setsid(); os.execvp(sys.argv[1], sys.argv[1:])' "$@" </dev/null & }
 
 status() {
   for n in api monitor tunnel; do printf '%-8s %s\n' "$n" "$(alive $n && echo running || echo stopped)"; done
@@ -67,10 +73,10 @@ for _ in $(seq 1 30); do docker exec infra-postgres-1 pg_isready -U twelve >/dev
 
 # ---- api (holds the attester key) and monitor (public attester address only, I12)
 if ! alive api; then
-  (cd apps/api && ATTESTER_PRIVATE_KEY=$ATT nohup npx tsx src/index.ts </dev/null >"$LIVE/api.log" 2>&1 & echo $! >"$LIVE/api.pid")
+  (cd apps/api && export ATTESTER_PRIVATE_KEY=$ATT && detach npx tsx src/index.ts twelve-role=api >"$LIVE/api.log" 2>&1)
 fi
 if ! alive monitor; then
-  (cd apps/monitor && env -u ATTESTER_PRIVATE_KEY nohup npx tsx src/index.ts </dev/null >"$LIVE/monitor.log" 2>&1 & echo $! >"$LIVE/monitor.pid")
+  (cd apps/monitor && unset ATTESTER_PRIVATE_KEY && detach npx tsx src/index.ts twelve-role=monitor >"$LIVE/monitor.log" 2>&1)
 fi
 unset ATT
 for _ in $(seq 1 60); do healthy "http://127.0.0.1:$PORT" && break; sleep 1; done
@@ -79,9 +85,9 @@ healthy "http://127.0.0.1:$PORT" || { echo "api did not come up; see .live/api.l
 # ---- tunnel (a quick tunnel keeps its URL for the life of the process)
 if ! alive tunnel; then
   : >"$LIVE/tunnel.log"
-  nohup cloudflared tunnel --no-autoupdate --url "http://127.0.0.1:$PORT" </dev/null >"$LIVE/tunnel.log" 2>&1 & echo $! >"$LIVE/tunnel.pid"
+  detach cloudflared tunnel --no-autoupdate --url "http://127.0.0.1:$PORT" >"$LIVE/tunnel.log" 2>&1
   for _ in $(seq 1 60); do grep -qoE 'https://[a-z0-9-]+\.trycloudflare\.com' "$LIVE/tunnel.log" && break; sleep 1; done
-  nohup caffeinate -ims -w "$(cat "$LIVE/tunnel.pid")" </dev/null >/dev/null 2>&1 & echo $! >"$LIVE/caffeinate.pid"
+  detach caffeinate -ims -w "$(pgrep -f "$(pattern tunnel)" | head -1)" >/dev/null 2>&1
 fi
 URL=$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' "$LIVE/tunnel.log" | head -1)
 [[ -n "$URL" ]] || { echo "tunnel URL not found; see .live/tunnel.log" >&2; exit 1; }

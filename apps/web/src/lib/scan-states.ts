@@ -18,6 +18,9 @@ export type Outcome = { title: string; body: string; tone: "neutral" | "warn" | 
 
 /** Terminal failures. `code` is the scan state, or the error code where it is more specific (CODE_CHANGED). */
 export function outcomeFor(state: string, code?: string, message?: string): Outcome | null {
+  if (state === "FETCH_FAILED" && code === "RPC") {
+    return { title: "Arc's RPC isn't answering right now", body: "Twelve couldn't read this contract from the chain because the RPC provider is limiting requests. Nothing about the contract is implied by this. Try again in a few minutes.", tone: "warn", retry: true };
+  }
   if (code === "CODE_CHANGED") {
     return { title: "The code changed mid-scan", body: "This contract's code changed while it was being analyzed. Scan again to check the code that's there now.", tone: "warn", retry: true };
   }
