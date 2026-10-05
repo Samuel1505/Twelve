@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { formatUsdc18, parseUsdc6, toUsdc18, usdc18 } from "@twelve/shared/units";
 import { cn } from "@/lib/cn";
 
-const PRESETS = ["0.01", "5", "1000"] as const;
+const PRESETS = ["0.1", "5", "1000"] as const;
 type Preset = (typeof PRESETS)[number];
 
 /**
@@ -12,7 +12,7 @@ type Preset = (typeof PRESETS)[number];
  * view (explanatory, rare). Switching amounts is frequent, so it updates instantly — no animation.
  */
 export function Ledger() {
-  const [amount, setAmount] = useState<Preset>("5");
+  const [amount, setAmount] = useState<Preset>("0.1");
   // the stagger plays once, on first paint; later amount switches re-render without it
   const firstRun = useRef(true);
   useEffect(() => {

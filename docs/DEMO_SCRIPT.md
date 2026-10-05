@@ -3,7 +3,7 @@
 Two formats from one script: a **3:00 recorded video** (the submission asset) and a **live walkthrough** (office hours / follow-ups). Everything shown runs on **Arc mainnet** — no testnet, no mocks, no slides with fake screens.
 
 **Differentiation statement (must be true on screen, false for any generic project):**
-> A buyer pays 5 USDC to a live Arc mainnet contract and gets back 0.000000000005 USDC; Twelve flags the exact source line before deploy, catches the transaction on-chain within seconds, and makes the same code fail to compile.
+> A buyer pays 0.1 USDC to a live Arc mainnet contract and gets back 0.0000000000001 USDC; Twelve flags the exact source line before deploy, catches the transaction on-chain within seconds, and makes the same code fail to compile.
 
 **The primary wow beat** (live refund arrives as dust + alert fires) lands by **0:50** — within the first 30% of runtime.
 
@@ -13,7 +13,7 @@ Two formats from one script: a **3:00 recorded video** (the submission asset) an
 
 | Check | How |
 |---|---|
-| Demo wallet A (buyer) funded | ≥ 10 USDC ERC-20 view on mainnet, plus gas |
+| Demo wallet A (buyer) funded | ≥ 0.5 USDC on mainnet (0.1 per take, locked in LeakyRefund for good; plus gas) |
 | LeakyRefund deployed, verified, **sold out** | `capacity` reached so `buy()` takes the refund path |
 | FixedRefund deployed, verified, sold out | same state |
 | OverpayVault deployed with ≤ 1 USDC | for guarded-revert beat |
@@ -37,9 +37,9 @@ Screen: 1920×1080, browser zoom 125%, dark theme, notifications off. One browse
 **Narration:** "On Arc, one USDC is a million — or a quintillion — depending on which door you use. Same balance, two decimal views. Mix them up and you're off by a factor of a trillion. Arc's docs warn about it. Nothing enforced it."
 
 ### Beat 2 — The bug, live on mainnet (0:15–0:50) ★ primary wow
-**Screen:** LeakyRefund's verified source on the explorer, highlight `call{value: paid6}`. Then the web app `/`, alert ticker visible. Wallet A calls `buy(5_000000)` (5 USDC).
-**Narration:** "This is a real ticket shop on Arc mainnet. It takes payment through the ERC-20 interface and refunds through the native one — exactly how you'd write it on Ethereum. The show's sold out, so I should get my 5 USDC back."
-**Screen:** Explorer tx: incoming refund `0.000000000005 USDC`. **Within ~1 s**, the ticker shows `HIGH · D1 CROSS-VIEW RAW EQUALITY · LeakyRefund`. Click the alert: evidence panel — inflow 5.000000 (erc20), outflow 0.000000000005 (native), ratio 10⁻¹².
+**Screen:** LeakyRefund's verified source on the explorer, highlight `call{value: paid6}`. Then the web app `/`, alert ticker visible. Wallet A calls `buy(100000)` (0.1 USDC: raw `100000` in the ERC-20 view).
+**Narration:** "This is a real ticket shop on Arc mainnet. It takes payment through the ERC-20 interface and refunds through the native one — exactly how you'd write it on Ethereum. The show's sold out, so I should get my 0.1 USDC back."
+**Screen:** Explorer tx: incoming refund `0.0000000000001 USDC` (raw `100000` in the native view). **Within ~1 s**, the ticker shows `HIGH · D1 CROSS-VIEW RAW EQUALITY · LeakyRefund`. Click the alert: evidence panel — inflow `100000` erc20 = 0.1 USDC, outflow `100000` native = 0.0000000000001 USDC, ratio 10⁻¹².
 **Narration:** "I got back five trillionths of a dollar. And Twelve caught it from the chain itself — Arc logs every native USDC movement, so the monitor sees the same number going in through one door and out through the other, unscaled. That fingerprint doesn't need the source code."
 **Timing rule:** if the alert hasn't appeared by 3 s, cut to fallback clip F1; never wait on camera.
 
@@ -72,7 +72,7 @@ Screen: 1920×1080, browser zoom 125%, dark theme, notifications off. One browse
 ---
 
 ## 2. Visual framing rules
-- Every amount on screen shows **both** raw integer and USDC with the view label: `5000000 (6-dec) = 5.000000 USDC`. The raw numbers *are* the story.
+- Every amount on screen shows **both** raw integer and USDC with the view label: `100000 (6-dec) = 0.1 USDC`. The raw numbers *are* the story.
 - Use the same color for the 6-dec view (blue) and 18-dec view (amber) across web, alerts, and trace chips. Collision points in red.
 - Never show a loading spinner longer than 2 s on camera; cut.
 - Keep the cursor still while narrating; move only to point.
