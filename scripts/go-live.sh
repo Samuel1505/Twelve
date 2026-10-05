@@ -73,7 +73,9 @@ for _ in $(seq 1 30); do docker exec infra-postgres-1 pg_isready -U twelve >/dev
 
 # ---- api (holds the attester key) and monitor (public attester address only, I12)
 if ! alive api; then
-  (cd apps/api && export ATTESTER_PRIVATE_KEY=$ATT && detach npx tsx src/index.ts twelve-role=api >"$LIVE/api.log" 2>&1)
+  # scans (api, analyzer, attester) use their own RPC key when one is set, so the monitor's polling can't starve them
+  SCAN_RPC=$(envval ARC_RPC_URL_SCAN .env)
+  (cd apps/api && export ATTESTER_PRIVATE_KEY=$ATT ARC_RPC_URL=${SCAN_RPC:-$ARC_RPC_URL} && detach npx tsx src/index.ts twelve-role=api >"$LIVE/api.log" 2>&1)
 fi
 if ! alive monitor; then
   (cd apps/monitor && unset ATTESTER_PRIVATE_KEY && detach npx tsx src/index.ts twelve-role=monitor >"$LIVE/monitor.log" 2>&1)
