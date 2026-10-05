@@ -39,6 +39,7 @@ def error_code(e: BaseException) -> str:
         "NotAContract": "NOT_A_CONTRACT",
         "UnsupportedTarget": "UNSUPPORTED",
         "Unsupported": "UNSUPPORTED",
+        "SlitherInheritanceStall": "UNSUPPORTED",
         "NotVerified": "NOT_VERIFIED",
         "MatchFailed": "MATCH_FAILED",
         "CompileError": "COMPILE_FAILED",

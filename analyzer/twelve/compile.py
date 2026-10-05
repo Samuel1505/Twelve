@@ -32,6 +32,58 @@ class CompileError(Exception):
     pass
 
 
+class SlitherInheritanceStall(Exception):
+    """Slither cannot order the contracts' inheritance (seen: a parent contract that shares its name with a library,
+    UniversalRouter's `Lock`). Its parser would loop forever; the report would rest on a wrong parent, so: UNSUPPORTED."""
+
+
+_SLITHER_GUARDED = "0.11.6"
+
+
+def _guard_slither_using_for() -> None:
+    """Bound slither 0.11.6's `_analyze_using_for` worklist (otherwise unbounded: a contract whose parent is never marked
+    analyzed is re-queued forever). Same order and effects as the original; raises once a full pass makes no progress.
+    Applied only to the exact pinned version whose source this mirrors (CLAUDE.md §8)."""
+    from importlib.metadata import version
+
+    from slither.solc_parsing import slither_compilation_unit_solc as m
+
+    cls = m.SlitherCompilationUnitSolc
+    if version("slither-analyzer") != _SLITHER_GUARDED or getattr(cls, "_twelve_guarded", False):
+        return
+
+    def _analyze_using_for(self: Any, contracts_to_be_analyzed: list[Any], libraries: list[Any]) -> None:
+        self._analyze_top_level_using_for()
+        for lib in libraries:
+            lib.analyze_using_for()
+        todo = list(contracts_to_be_analyzed)
+        stalled = 0
+        while todo:
+            contract = todo.pop(0)
+            fathers = contract.underlying_contract.inheritance
+            if not fathers or all(self._underlying_contract_to_parser[f].is_analyzed for f in fathers):
+                contract.analyze_using_for()
+                contract.set_is_analyzed(True)
+                stalled = 0
+                continue
+            todo.append(contract)
+            stalled += 1
+            if stalled > len(todo):  # a full rotation without progress: nothing left can ever become ready
+                waits = sorted(
+                    f"{c.underlying_contract.name} inherits '{f.name}' ({f.contract_kind})"
+                    for c in todo
+                    for f in c.underlying_contract.inheritance
+                    if not self._underlying_contract_to_parser[f].is_analyzed
+                )
+                raise SlitherInheritanceStall(
+                    "Slither cannot resolve this contract's inheritance (" + "; ".join(waits[:3]) + "). This usually "
+                    "means two contracts or libraries share a name in the verified sources."
+                )
+
+    cls._analyze_using_for = _analyze_using_for
+    cls._twelve_guarded = True
+
+
 def resolve_solc(version: str = DEFAULT_SOLC_VERSION) -> Path:
     """Find an exact solc build: $TWELVE_SOLC, then svm (Foundry) and solc-select install dirs."""
     explicit = os.environ.get("TWELVE_SOLC")
@@ -130,9 +182,12 @@ def build_ir(std: dict[str, Any], solc: Path) -> CompiledInput:
             target = root / name
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(src["content"], encoding="utf-8")
+        _guard_slither_using_for()
         try:
             cc = CryticCompile(SolcStandardJson(work_copy), solc=str(solc), solc_working_dir=str(root))
             sl = Slither(cc)
+        except SlitherInheritanceStall:
+            raise
         except Exception as e:  # crytic/slither raise a variety of types
             raise CompileError(str(e).strip().splitlines()[-1] if str(e).strip() else repr(e)) from e
     return CompiledInput(std, h, solc_long_version(solc), sl)
