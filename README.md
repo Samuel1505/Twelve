@@ -326,6 +326,10 @@ infra/              Dockerfile, fly.toml, compose for local Postgres
 | [`docs/DECISIONS.md`](docs/DECISIONS.md) | Architecture decision records |
 | [`USERFLOW.md`](USERFLOW.md) | Step-by-step use of the app |
 
+## License
+
+[MIT](LICENSE)
+
 ---
 
 *Twelve: the decimal-safety layer for Arc. It only exists because Arc does.*
