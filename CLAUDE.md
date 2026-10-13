@@ -32,7 +32,7 @@ The problem only exists because of Arc's ledger design. If a feature you are abo
 | `corpus/`, any test, any metric | `docs/CORPUS_AND_TESTING.md` |
 | Changing a design choice | `docs/DECISIONS.md` (add an ADR; never silently diverge) |
 | Deciding what to build next | `docs/BUILD_PLAN.md` |
-| Demo contracts, web UX priorities | `DEMO_SCRIPT.md` |
+| Demo contracts, web UX priorities | `docs/DEMO_SCRIPT.md` |
 | Submission copy | `docs/SUBMISSION.md` |
 
 If a doc and the code disagree, the doc is the spec **unless** the doc contains a `VERIFY:` marker you have since resolved against a primary source — then update the doc in the same commit.
@@ -70,7 +70,7 @@ Violating any of these is a bug even if tests pass.
 ```
 twelve/
 ├── CLAUDE.md                  # this file
-├── DEMO_SCRIPT.md
+├── README.md, USERFLOW.md, LICENSE
 ├── docs/                      # specs (see §2)
 ├── analyzer/                  # Python 3.12, uv-managed, Slither-based
 │   ├── pyproject.toml
@@ -91,7 +91,8 @@ twelve/
 │   │   ├── TwelveGate.sol     # example consumer: refuses native USDC into non-CLEAN targets
 │   │   ├── guard/Usdc.sol     # Usdc6/Usdc18 UDVTs + operators + conversions
 │   │   ├── guard/TwelvePayout.sol
-│   │   └── demo/              # LeakyRefund.sol, FixedRefund.sol (see DEMO_SCRIPT.md)
+│   │   └── demo/              # LeakyRefund.sol, FixedRefund.sol, OverpayVault.sol (see docs/DEMO_SCRIPT.md)
+│   ├── fixtures/compile-fail/ # Mix.sol: must NOT compile (script/compile-fail.sh)
 │   ├── test/                  # local (mocked) tests
 │   ├── test-arc/              # tests that MUST run on Arc testnet (I8)
 │   └── script/                # Deploy*.s.sol
@@ -101,7 +102,8 @@ twelve/
 │   ├── monitor/               # log ingestion, pairing, baselines, detectors, revoker
 │   └── web/                   # Next.js: paste address → report → attestation → alerts
 ├── packages/shared/           # chain config, branded units, report schema (zod), ABIs
-├── scripts/                   # lint-units.sh, corpus-metrics, mainnet-sweep
+├── packages/db/               # Postgres connection + migration runner shared by api and monitor (SQL in apps/api/migrations)
+├── scripts/                   # lint-units.sh, go-live.sh, verify-pro.sh, phase0/, (Phase 7: mainnet-sweep)
 └── infra/                     # Dockerfile (python+solc+node), fly.toml, compose for local pg
 ```
 
@@ -120,22 +122,25 @@ docker compose -f infra/compose.yml up -d          # local postgres
 cd analyzer && uv run pytest -q
 uv run twelve scan ../corpus/c01_ltv_compare/bug.sol --json
 uv run twelve scan --address 0x... --chain arc      # fetch + match + scan
-uv run twelve verify --address 0x...                # recompute reportHash, compare to registry
+uv run twelve verify --report report.json          # recompute a report (from GET /v1/reports/<hash>); prints the git checkout if the analyzer commit differs
 uv run python -m twelve.metrics ../corpus           # precision/recall table; must not regress
 
 # contracts
 cd contracts && forge test                          # local, mocked
-forge test --match-path 'test-arc/*' --fork-url $ARC_TESTNET_RPC   # real Arc semantics
-forge script script/DeployRegistry.s.sol --rpc-url $ARC_RPC --broadcast --verify \
-  --verifier blockscout --verifier-url $BLOCKSCOUT_VERIFY_URL
+forge test --match-path 'test-arc/*' --fork-url $ARC_TESTNET_RPC_URL   # real Arc semantics (reads only, see below)
+script/compile-fail.sh                              # Usdc6 + Usdc18 must NOT compile (GUARD §1)
+forge script script/DeployRegistry.s.sol --rpc-url $ARC_RPC_URL --broadcast   # mainnet scripts also need ALLOW_MAINNET=1
+scripts/verify-pro.sh 5042 <address> <path:Contract> [ctorArgsHex]   # mainnet verification (forge --verify can't parse the Pro API on 5042)
 
 # services
-pnpm --filter api dev
-pnpm --filter monitor dev -- --from-block <n>
-pnpm --filter web dev
+pnpm --filter @twelve/api dev
+pnpm --filter @twelve/monitor dev                   # resumes from its checkpoint; MONITOR_START_BLOCK only for a fresh DB
+pnpm --filter @twelve/web dev
+scripts/go-live.sh [status|stop]                    # live site: Vercel web + local services behind a tunnel (ADR-023)
 
 # gates
 scripts/lint-units.sh && pnpm -r typecheck && pnpm -r test
+(cd contracts && forge test && script/compile-fail.sh)
 ```
 
 Resolved in Phase 0 (ARC_LEDGER §4): `forge test --fork-url $ARC_TESTNET_RPC_URL` executes `0x3600` **reads** (`balanceOf`) correctly but **not writes**: `transfer` calls the native-coin precompile at `0x1800…`, which is a placeholder (`0x01`) in a fork and reverts. Read-only assertions may use a fork. Anything that moves USDC must be a broadcast-and-assert script against testnet (proposed ADR-017).
@@ -154,8 +159,10 @@ See `.env.example`. Required:
 | `DATABASE_URL` | Postgres |
 | `ATTESTER_PRIVATE_KEY` | hot key, small USDC balance, attest/revoke only |
 | `DEPLOYER_PRIVATE_KEY` | used only by forge scripts; never loaded by services |
-| `REGISTRY_ADDRESS`, `GATE_ADDRESS` | from deployment |
-| `ALERT_WEBHOOK_SECRET`, `TELEGRAM_BOT_TOKEN` (optional) | alert delivery |
+| `REGISTRY_ADDRESS`, `GATE_ADDRESS` | from deployment (gate: forge scripts only) |
+| `ARC_RPC_URL_SCAN` (optional) | separate key for the api process so the monitor's polling can't rate-limit scans |
+| `DISCLOSED_ADDRESSES`, `PRIVATE_TARGETS` | public alert feed allowlist (ADR-022); undisclosed third-party targets, never attested (CORPUS §7.4) |
+| `TELEGRAM_BOT_TOKEN` (optional) | alert delivery (webhook secrets are per subscription, returned by `POST /v1/subscriptions`) |
 
 ---
 

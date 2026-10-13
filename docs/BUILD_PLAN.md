@@ -46,11 +46,13 @@ Goal: replace every `VERIFY:` that blocks later phases with a recorded fact.
 - `/`, `/c/[address]` (findings with highlighted source lines and unit trace rendered as a chain of chips `msg.value [18] → credits[user] [18] → USDC.transfer expects [6]`), attestation panel with explorer links and a copyable `twelve verify` command, `/alerts` live ticker, `/integrate`, `/corpus`, `/sweep`.
 - Quality bar: loads fast, no broken states, every error state from the pipeline has a human sentence, mobile-readable.
 **Exit:** a stranger can open the link, paste an address, and understand the result without the demo narration.
+**Met 2026-10-05:** live at https://twelve-arc.vercel.app (ADR-023: services on the maintainer's machine behind a tunnel). Every pipeline outcome has a sentence (including TIMEOUT, RPC, UNSUPPORTED, WITHHELD); verified from a browser and at 390 px. `/sweep` shows the Phase 2 sample and Phase 4 replay until Phase 7.
 
 ## Phase 6 — Guard + demo contracts
 - `Usdc.sol` + tests + compile-fail fixture; `TwelvePayout`; `LeakyRefund`, `FixedRefund`, `OverpayVault`.
 - Deploy demo contracts to mainnet (trivial funding), scan them, attest them.
-**Exit:** every beat in `DEMO_SCRIPT.md` runs live on mainnet end to end.
+**Exit:** every beat in `docs/DEMO_SCRIPT.md` runs live on mainnet end to end.
+**Met 2026-10-02 (beats 2–6):** [`docs/evidence/phase6-mainnet-demo.md`](evidence/phase6-mainnet-demo.md). Beat 7's sweep claim waits for Phase 7. The demo amount is 0.1 USDC.
 
 ## Phase 7 — Mainnet sweep + disclosure
 - Sweep all verified contracts; triage; `/sweep` page with aggregates.
@@ -59,7 +61,7 @@ Goal: replace every `VERIFY:` that blocks later phases with a recorded fact.
 
 ## Phase 8 — Submission
 - README (problem → layers → how to verify a report yourself → metrics → deployed addresses).
-- `docs/SUBMISSION.md` finalized; record demo video per `DEMO_SCRIPT.md`.
+- `docs/SUBMISSION.md` finalized; record demo video per `docs/DEMO_SCRIPT.md`.
 **Exit:** submission fields complete (live link, public repo, description incl. Arc usage, builder profile).
 
 ---

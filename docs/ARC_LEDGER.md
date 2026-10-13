@@ -173,9 +173,9 @@ Raw receipts and responses: `docs/evidence/phase0/`.
 
 ### 8.2 Deviations from doc assumptions
 
-- `0x3600…` is an **upgradeable ZOS-slot proxy**, not a bare precompile. (a) Twelve's own proxy detection (ANALYZER/ARCHITECTURE: EIP-1967 impl + beacon only) would classify contracts using the legacy ZOS slot as plain contracts. Proposed ADR-018. (b) Circle can upgrade the ERC-20 view; the `Upgraded` topic is in its bytecode, so the monitor can watch it.
-- Fork tests cannot exercise ERC-20-view writes → `test-arc/` writes must broadcast (proposed ADR-017; ADR-008 already requires testnet, this changes the mechanism).
+- `0x3600…` is an **upgradeable ZOS-slot proxy**, not a bare precompile. (a) Twelve's own proxy detection (ANALYZER/ARCHITECTURE: EIP-1967 impl + beacon only) would classify contracts using the legacy ZOS slot as plain contracts. ADR-018 (accepted): the legacy ZOS slot is now detected. (b) Circle can upgrade the ERC-20 view; the `Upgraded` topic is in its bytecode, so the monitor can watch it.
+- Fork tests cannot exercise ERC-20-view writes → `test-arc/` writes must broadcast (ADR-017, proposed but followed since Phase 0; ADR-008 already requires testnet, this changes the mechanism).
 - Providers cap `eth_getLogs` (dRPC free: 101 blocks; Infura: 10,000 blocks **and** response size). MONITOR backfill must page by span and halve on the size error; it must not assume a fixed window.
 - Blockscout `compiler_version` has a leading `v` on testnet but not on mainnet; no `immutable_references` on either.
 - `Contract addresses` source in the header uses `docs.arc.network`; every other source uses `docs.arc.io`. `VERIFY:` which domain is canonical (owner: next docs pass) before §5 is resolved.
-- crytic-compile mutates its standard-JSON input and drops `optimizer.details` (proposed ADR-016).
+- crytic-compile mutates its standard-JSON input and drops `optimizer.details` (ADR-016, accepted: the bytecode match compiles independently of crytic-compile).

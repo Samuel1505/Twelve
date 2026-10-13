@@ -9,7 +9,8 @@ const { BLOCKSCOUT_API_KEY } = requireEnv("BLOCKSCOUT_API_KEY");
 const chainId = netArg() === "testnet" ? 5042002 : 5042;
 const base = `https://api.blockscout.com/${chainId}/api/v2`;
 
-// VERIFY: auth scheme for the Pro API. Try query param first, then header; report which worked.
+// Phase 0 probe of the Pro API auth scheme. Resolved: the `apikey` query parameter works (used by the analyzer and
+// apps/api); the header fallback is kept only so this probe reports both.
 async function get(path: string): Promise<{ status: number; body: unknown; auth: string }> {
   for (const [auth, url, headers] of [
     ["query:apikey", `${base}${path}${path.includes("?") ? "&" : "?"}apikey=${BLOCKSCOUT_API_KEY}`, {}],

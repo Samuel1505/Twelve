@@ -1,12 +1,12 @@
 # SUBMISSION.md — Arc Microgrants entry
 
-Required fields: live deployment link, public repo, short description (what it does + what it uses Arc for), builder profile (GitHub / X / Farcaster). Fill placeholders after Phase 6.
+Required fields: live deployment link, public repo, short description (what it does + what it uses Arc for), builder profile (GitHub / X / Farcaster). Remaining to fill: X / Farcaster handle, demo video link.
 
 ## Live link
-`https://<web-domain>` — opens on the home page with a paste box pre-filled with the mainnet LeakyRefund address and a "Scan" button, plus the live alert ticker. First impression in < 5 seconds.
+https://twelve-arc.vercel.app — opens on the home page with a paste box pre-filled with the mainnet LeakyRefund address and a "Scan" button, plus the live alert ticker. First impression in < 5 seconds. The API behind it runs on the maintainer's machine (ADR-023), so it is fully live only while that machine is online.
 
 ## Repo
-`https://github.com/<handle>/twelve`
+https://github.com/Samuel1505/Twelve (MIT)
 
 ## Description (≤ 150 words)
 > On Arc, USDC is one balance with two views: 18 decimals natively (`msg.value`, balances, gas) and 6 decimals through the ERC-20 at `0x3600…`. Code ported from other EVM chains mixes them and misprices by 10¹² — overpaying until drained, or refunding users dust. Arc's docs warn about it; nothing enforced it.
@@ -20,10 +20,11 @@ Required fields: live deployment link, public repo, short description (what it d
 - Deterministic sub-second finality: alerts and proxy-upgrade revocations are final, no reorg handling.
 
 ## Evidence to link
-- Registry + gate + demo contract addresses (explorer links).
-- `/corpus` precision/recall table.
-- `/sweep` mainnet stats.
-- Demo video.
+- Registry + gate + demo contract addresses (explorer links): README "Deployed on Arc mainnet".
+- `/corpus` precision/recall table: https://twelve-arc.vercel.app/corpus
+- `/sweep` mainnet results: https://twelve-arc.vercel.app/sweep (15-contract sample + full-history monitor replay; the full sweep is Phase 7).
+- Every demo beat run on mainnet: `docs/evidence/phase6-mainnet-demo.md`.
+- Demo video: _to record (docs/DEMO_SCRIPT.md, 0.1 USDC per take)._
 
 ## Builder profile
-GitHub: `<handle>` · X: `<handle>`
+GitHub: [Samuel1505](https://github.com/Samuel1505) · X: _to fill_

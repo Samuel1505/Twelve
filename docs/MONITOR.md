@@ -29,6 +29,7 @@ Mechanics:
 - **Head**: WS `newHeads` subscription; on each head fetch logs for `[checkpoint+1, head]`. WS disconnect → fall back to polling every 1 s until reconnected. *Phase 4: no WS endpoint is configured (`ARC_WS_URL` unset), so the monitor polls every 250 ms; headers and logs for a window are fetched in one parallel round trip. Measured on testnet: D1 alert 0.05–1.23 s after the block timestamp; D4 revoke tx +3–4 s after the upgrade block (`docs/evidence/phase4-testnet-exits.md`).*
 - **Idempotency**: upsert on `(block, log_index)`. Replay any range safely.
 - **Continuity (I9)**: store `block_hash` with checkpoint; for each new block verify `parentHash == stored hash`. Mismatch ⇒ halt stream, page ops. No automatic recovery. *Implemented at every window boundary (head-following windows are 1–2 blocks, so effectively every block); a CONTINUITY OPS alert is written and the process exits non-zero.*
+- **Transient provider errors** (429, timeouts, resets) never halt: the window is retried with backoff 1 s → 60 s (`follow.ts: isFatal`, `retryDelayMs`). Only a continuity violation stops ingestion.
 - **Lag SLO**: head lag < 3 s p95. Alert detection latency target: < 2 s after block.
 
 ## 2. Pairing → movements

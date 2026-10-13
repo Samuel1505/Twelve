@@ -251,16 +251,29 @@ Canonicalization: RFC 8785 JCS (`rfc8785` package). All hex lowercase, `0x`-pref
 
 Implementation notes (Phase 2): solc builds are fetched from binaries.soliditylang.org and checked against the published sha256 (`fetch/solc_bin.py`). The match masks *every* CBOR metadata blob present at the same offset/length on both sides — factories embed child creation code with its own metadata mid-runtime (`fetch/match.py:cbor_blobs`). A verified `kind: contract` whose fallback/receive delegates is reported as `UNKNOWN_PROXY` in `coverage.unsupported` (verdict `INCOMPLETE`, ADR-018). Chain reads are pinned to `bindingBlock`; `twelve verify --report r.json` recomputes at that block.
 
+Implementation notes (Phase 6):
+- **Source mode naming.** Source names are relative to the scanned file's directory (or the scanned directory). When a
+  relative import climbs out of it (`../guard/Usdc.sol`), names are rooted at the deepest directory containing every
+  collected file, so solc resolves the imports; self-contained inputs keep identical names (`tests/test_compile_paths.py`).
+- **Slither 0.11.6 inheritance stall.** Slither's `_analyze_using_for` worklist re-queues a contract until all its
+  parents are analyzed; when a parent never is (seen on mainnet: UniversalRouter's `Dispatcher is Lock`, with a library
+  also named `Lock`), it loops forever. `compile.py` installs a bounded copy of that loop for the exact pinned version;
+  a full pass without progress raises `SlitherInheritanceStall` → `UNSUPPORTED` with the reason
+  (`tests/test_slither_guard.py`).
+
 ## 9. CLI
 
 ```
-twelve scan <path|--standard-json file> [--config twelve.toml] [--json]
-twelve scan --address 0x… --chain arc [--block N]          # full fetch→match→bind→analyze
-twelve verify --address 0x… [--attester 0x…]                # recompute; compare to on-chain reportHash
-twelve explain <findingId> --report report.json             # human trace rendering
-twelve rules                                                # list rules, severities, docs links
+twelve scan <path> [--json] [--fail-on SEVERITY] [--solc PATH]      # source mode: a .sol file or a directory
+twelve scan --address 0x… --chain arc [--block N] [--json] [--progress]   # full fetch→rebuild→match→bind→analyze
+twelve verify --report report.json [--expect 0x…]          # recompute at the report's bindingBlock; compare reportHash
+twelve tool                                                 # tool identity (version, gitCommit, slither, rulesHash)
+twelve rules                                                # list rules, severities, fixes
 ```
+`verify` reproduces a hash only with the analyzer commit recorded in the report (`tool.gitCommit`); on a mismatch it
+prints the `git checkout` to run. `twelve explain` (human trace rendering) is not built; the web report renders traces.
 Exit codes: `0` CLEAN, `1` FINDINGS, `2` INCOMPLETE, `3` error. CI uses `--fail-on HIGH`.
 
 ## 10. Performance budget
 Median scan (fetch → report) under 30 s for a < 2k-SLOC contract on the deployment box. Summary memoization and SSA make this realistic; if a contract blows the budget, time-box the fixpoint and return `INCOMPLETE` rather than hang.
+*As built:* there is no fixpoint time-box yet. The API kills an analysis after `ANALYZER_TIMEOUT_MS` (default 180 s) and ends the scan as ANALYZER_ERROR / TIMEOUT; nothing partial is reported or attested.

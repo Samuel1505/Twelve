@@ -57,8 +57,12 @@ library Usdc {
 ```
 
 Rules:
-- `wrap/unwrap` appear **only** inside `Usdc.sol`. Analyzer rule (TW-010, INFO, repo-internal lint): `Usdc6.unwrap`/`Usdc18.unwrap` outside `guard/` in Twelve's own code.
+- `wrap/unwrap` appear **only** inside `guard/` (`Usdc.sol`, `TwelvePayout.sol`). *Not built yet:* analyzer rule (TW-010, INFO, repo-internal lint): `Usdc6.unwrap`/`Usdc18.unwrap` outside `guard/` in Twelve's own code.
 - Analyzer treats `Usdc.*` typed sources/sinks as DEFINITE (ANALYZER §5.1).
+
+*As built (Phase 6):* no OpenZeppelin dependency. `sendErc20` / `pullErc20` call `0x3600…` directly and accept a
+`true` or empty return; `mulDiv6` / `mulDiv18` use an in-file 512-bit `mulDiv` (floor; reverts `MulDivOverflow` on
+overflow or a zero divisor). `TwelveGate` uses a transient-storage lock rather than `ReentrancyGuard`.
 
 Tests (`test/Usdc.t.sol`): round-trip fuzz `toErc20(toNative(a)) == (a, 0)`; `toErc20` dust exactness fuzz; overflow on `toNative` near `type(uint256).max / SCALE`; operators match raw semantics.
 Compile-fail test: `contracts/fixtures/compile-fail/Mix.sol` containing `Usdc6 + Usdc18`; `contracts/script/compile-fail.sh` asserts `forge build` of that file **fails** with solc Error 5653 (operator type mismatch). (Store as a fixture outside `src`, compile via `solc` directly in a script; this is the demo's "compile error" beat.)
@@ -127,7 +131,7 @@ function buy(uint256 paid6) external nonReentrant {
     sold++;
 }
 ```
-Effects: analyzer TW-003 HIGH (DEFINITE, `paid6` from `transferFrom` param flows to native sink — param unit set by the `transferFrom` sink expectation, see ANALYZER §4 backward inference note below); monitor D1 HIGH (ERC-20 inflow raw `y`, native outflow raw `y`, same tx). Buyer paying 5 USDC receives 0.000000000005 USDC.
+Effects: analyzer TW-003 HIGH (INFERRED as built, `paid6` from `transferFrom` param flows to native sink — param unit set by the `transferFrom` sink expectation, see ANALYZER §4 backward inference note below); monitor D1 HIGH (ERC-20 inflow raw `y`, native outflow raw `y`, same tx). Buyer paying 5 USDC receives 0.000000000005 USDC.
 
 > Backward inference: a public param with no annotation is `⊥`. When it reaches a DEFINITE sink (`transferFrom` amount expects `(1,6)`), bind it to `(1,6)` at INFERRED confidence *for the rest of the function* **only if** that sink dominates the later use. Otherwise leave `⊥`. Implement as a pre-pass; add corpus cases for the dominated and non-dominated variants.
 

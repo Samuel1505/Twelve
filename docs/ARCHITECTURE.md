@@ -79,7 +79,8 @@ QUEUED
  → HASHING        JCS → keccak → reportHash; persist report (content-addressed)
  → ATTESTING      registry.attest(...) ; wait receipt
  → DONE
-Terminal errors: NOT_A_CONTRACT | UNSUPPORTED(reason) | NOT_VERIFIED | MATCH_FAILED | COMPILE_FAILED | ANALYZER_ERROR | ATTEST_FAILED(retryable)
+Terminal errors: NOT_A_CONTRACT | UNSUPPORTED(reason) | NOT_VERIFIED | MATCH_FAILED | COMPILE_FAILED | FETCH_FAILED (code `RPC` for chain reads) | ANALYZER_ERROR (code `TIMEOUT` past `ANALYZER_TIMEOUT_MS`) | ATTEST_FAILED(retryable) | CONFIG | WITHHELD (private target, CORPUS §7.4)
+Any analyzer error code the API doesn't know ends the scan as ANALYZER_ERROR, so a scan can never stay non-terminal.
 ```
 
 Rules:
@@ -113,17 +114,20 @@ All amounts `NUMERIC(78,0)` in a column whose name states the view. Derivation d
 - One Docker image (`infra/Dockerfile`): Node 22 + Python 3.12 + uv + svm-managed solc binaries prefetched for common versions. Two process types: `api` (+attester) and `monitor`. Fly.io (or Railway) with managed Postgres.
 - `web` on Vercel, `NEXT_PUBLIC_API_URL` → api.
 - Secrets via platform secret store. Attester key only in `api` process env.
-- Observability: structured JSON logs (pino / structlog), `/healthz` (DB, RPC head lag, attester balance, monitor lag), ops alerts to a separate Telegram channel.
+- **Current live deployment (ADR-023):** web on Vercel; api + monitor + Postgres on the maintainer's machine behind a Cloudflare quick tunnel, managed by `scripts/go-live.sh` (API bound to 127.0.0.1 with `TRUST_PROXY=1`; scans on their own RPC key `ARC_RPC_URL_SCAN`). The Docker/Fly setup in `infra/` is the path once hosting is funded.
+- Observability: structured JSON logs (pino / structlog), `/healthz` (DB + each chain's head), ops alerts to a separate Telegram channel. *As built:* monitor lag is in its log (`"msg":"window" … "lag"`); attester balance and monitor lag are not in `/healthz` yet.
 
 ## 6. Failure modes & responses
 
 | Failure | Detection | Response |
 |---|---|---|
-| RPC provider down | head lag > 30 s | fail over to secondary provider; monitor resumes from checkpoint (idempotent upserts) |
+| RPC provider down / rate-limited | provider errors, head lag | monitor retries each window with backoff 1 s → 60 s and resumes from its checkpoint (idempotent upserts); a scan whose chain read fails ends as FETCH_FAILED/RPC; scans use their own key (`ARC_RPC_URL_SCAN`) so the monitor's polling can't starve them. No automatic provider failover yet. |
 | Parent-hash discontinuity | continuity check | **halt ingestion**, page; finality violation or provider bug — do not guess |
 | Blockscout rate limit | 429 | exponential backoff with jitter; scan stays in FETCHING |
 | solc version missing | COMPILING error | svm install on demand, cache; if unavailable → COMPILE_FAILED with version in error |
 | Bytecode mismatch | MATCHING | MATCH_FAILED with diff summary (first differing offset, lengths, metadata presence) |
 | Attester low balance | watchdog | stop attesting, queue, page |
 | Analyzer crash | nonzero exit | ANALYZER_ERROR with stderr tail; never partial reports |
+| Analyzer runs too long | `ANALYZER_TIMEOUT_MS` (default 180 s) | process killed; ANALYZER_ERROR with code TIMEOUT; the single worker is freed |
+| Slither cannot order inheritance (duplicate contract names, e.g. UniversalRouter's `Lock`) | bounded using-for worklist | UNSUPPORTED with the reason (ANALYZER §8) |
 | ERC-20 log without system twin | pairing | ops alert with tx hash; movement recorded as `anomaly` |

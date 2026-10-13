@@ -18,7 +18,7 @@ Two formats from one script: a **3:00 recorded video** (the submission asset) an
 | FixedRefund deployed, verified, sold out | same state |
 | OverpayVault deployed with ≤ 1 USDC | for guarded-revert beat |
 | All three scanned and attested | web shows FINDINGS / CLEAN / FINDINGS |
-| Monitor head lag < 2 s | `/healthz` |
+| Monitor head lag < 2 s | `tail .live/monitor.log` → last `"msg":"window"` shows `"lag":"0"` (or 1) |
 | Alert ticker visible on `/` | SSE connected |
 | Pre-approved USDC allowance from wallet A to both shops | avoids an approve tx on camera |
 | Explorer tabs pre-opened (explorer.arc.io) | registry, LeakyRefund, wallet A |
