@@ -84,7 +84,19 @@ unset ATT
 for _ in $(seq 1 60); do healthy "http://127.0.0.1:$PORT" && break; sleep 1; done
 healthy "http://127.0.0.1:$PORT" || { echo "api did not come up; see .live/api.log" >&2; exit 1; }
 
-# ---- tunnel (a quick tunnel keeps its URL for the life of the process)
+# ---- tunnel (a quick tunnel keeps its URL for the life of the process, until Cloudflare retires it:
+# the process then loops on "Tunnel not found". A running tunnel that can't reach the API is replaced.)
+if alive tunnel; then
+  OLD=$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' "$LIVE/tunnel.log" 2>/dev/null | head -1)
+  if [[ -z "$OLD" ]] || ! healthy "$OLD"; then
+    echo "tunnel unreachable; replacing it"
+    pkill -f "$(pattern tunnel)" || true
+    pkill -f "caffeinate -ims -w" 2>/dev/null || true
+    for _ in $(seq 1 45); do alive tunnel || break; sleep 1; done   # cloudflared shuts down gracefully (~30 s)
+    alive tunnel && pkill -9 -f "$(pattern tunnel)" || true
+    : >"$LIVE/tunnel.log"
+  fi
+fi
 if ! alive tunnel; then
   : >"$LIVE/tunnel.log"
   detach cloudflared tunnel --no-autoupdate --url "http://127.0.0.1:$PORT" >"$LIVE/tunnel.log" 2>&1
